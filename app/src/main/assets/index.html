@@ -646,7 +646,8 @@
     const GEOCODER_URL = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=es&q=";
     const OSRM_URL = "https://router.project-osrm.org/table/v1/driving/";
     const OCM_URL = "https://api.openchargemap.io/v3/poi/";
-    const OCM_API_KEY = "23332df6-3ca9-4c28-8a6f-e7ff0d4a16f0";
+    const OCM_API_KEY = "ADD_YOUR_OCM_API_KEY_HERE";
+    const OCM_API_KEY_MISSING = !OCM_API_KEY || OCM_API_KEY.includes("ADD_YOUR_OCM_API_KEY_HERE");
     const SETTINGS_KEY = "glc_mobile_clean_settings_v1";
     const HISTORY_KEY = "glc_mobile_clean_history_v1";
     const STATIC_AREA_KEY = "ugasolineras_static_area_v1";
@@ -663,6 +664,10 @@
       ["Precio Gasoleo Premium", "diesel_premium"], ["Precio GLP", "glp"], ["Precio GNC", "gnc"],
       ["Precio GNL", "gnl"], ["Precio Hidrogeno", "hydrogen"]
     ];
+
+    function ensureOpenChargeMapApiKey() {
+      if (OCM_API_KEY_MISSING) throw new Error("Missing OCM API key. Add your key in app/src/main/assets/index.html");
+    }
 
     const dict = {
       es: {
@@ -1682,6 +1687,7 @@
 
     async function fetchEvPointsReal({ center = origin, distanceKm = settings.radius, maxResults = Math.max(20, settings.maxResults * 2), signal } = {}) {
       if (!center) return [];
+      ensureOpenChargeMapApiKey();
       const params = new URLSearchParams({
         key: OCM_API_KEY, output: 'json', countrycode: 'ES',
         latitude: String(center.latitude), longitude: String(center.longitude),
@@ -1724,6 +1730,7 @@
 
     async function fetchEvPointDetails(entity, signal) {
       if (!entity || entity.entityType !== 'ev' || !entity.id) return null;
+      ensureOpenChargeMapApiKey();
       const ocmId = String(entity.id).replace(/^ev_/, '');
       const params = new URLSearchParams({
         key: OCM_API_KEY,
@@ -1742,6 +1749,7 @@
 
     async function findNearbyEvForFossil(entity, signal) {
       if (!entity || entity.entityType !== 'fossil') return null;
+      ensureOpenChargeMapApiKey();
       const params = new URLSearchParams({
         key: OCM_API_KEY,
         output: 'json',
