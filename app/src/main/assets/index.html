@@ -1,0 +1,2647 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>GasolineraLowCost Mobile</title>
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <style>
+    :root{
+      --bg1:#edf4ff; --bg2:#f7fbff; --glass:rgba(255,255,255,.84); --glass-strong:rgba(255,255,255,.92);
+      --card:rgba(255,255,255,.98); --stroke:rgba(15,42,75,.16); --text:#12223d; --muted:#4f6280;
+      --blue:#297de7; --blue2:#1f69c8; --green:#24b06f; --red:#e2505f; --violet:#6f57d7;
+      --gold:#d4a738; --shadow:0 14px 36px rgba(19,44,79,.16);
+      --surface-start:rgba(251,254,255,.98); --surface-end:rgba(238,246,255,.98);
+      --popup-bg:#ffffff; --popup-fg:#13233e;
+      --safe-top:max(10px, env(safe-area-inset-top)); --safe-bottom:max(12px, env(safe-area-inset-bottom));
+    }
+    body[data-theme='dark']{
+      --bg1:#08111f; --bg2:#0f1f36; --glass:rgba(11,22,40,.74); --glass-strong:rgba(13,24,43,.94);
+      --card:rgba(18,33,58,.98); --stroke:rgba(255,255,255,.10); --text:#eef5ff; --muted:#9eb4d5;
+      --blue:#59a8ff; --blue2:#2c83ff; --green:#2fcb83; --red:#ff5d6c; --violet:#8b5cf6;
+      --gold:#ffd66b; --shadow:0 18px 50px rgba(0,0,0,.28);
+      --surface-start:rgba(9,18,34,.98); --surface-end:rgba(15,28,48,.98);
+      --popup-bg:#ffffff; --popup-fg:#13233e;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0}
+    body{
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      color:var(--text); overflow:hidden;
+      background:
+        radial-gradient(circle at top left, rgba(89,168,255,.20), transparent 28%),
+        radial-gradient(circle at top right, rgba(47,203,131,.12), transparent 24%),
+        linear-gradient(180deg,var(--bg2),var(--bg1));
+    }
+    .app{position:fixed; inset:0}
+    #map{position:absolute; inset:0; z-index:1}
+
+    .top-ui{
+      position:fixed; top:var(--safe-top); left:10px; right:10px; z-index:1000;
+      display:grid; gap:8px; pointer-events:none;
+    }
+    .top-row{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:start}
+    .pill-stack{display:grid; gap:8px; min-width:0}
+    .pill-stack.dual-electric{grid-template-columns:1fr; }
+    .best-pill{
+      pointer-events:auto; min-width:0; display:grid; grid-template-columns:auto minmax(0,1fr) minmax(100px,34vw); align-items:center; gap:12px;
+      padding:12px 14px; border-radius:24px;
+      background:linear-gradient(145deg, rgba(20,38,68,.96), rgba(9,18,33,.94));
+      border:1px solid var(--stroke); box-shadow:var(--shadow); cursor:pointer;
+    }
+    .best-pill-icon{
+      width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+      background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.10); font-size:20px; flex:0 0 auto;
+    }
+    .best-pill-content{min-width:0}
+    .best-kicker{font-size:.72rem; text-transform:uppercase; letter-spacing:.10em; color:#d8e8ff; opacity:.9; margin-bottom:4px; line-height:1.15; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+    .best-title{font-size:1.02rem; font-weight:900; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .best-sub{margin-top:3px; color:var(--muted); font-size:.82rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .best-price{text-align:right; min-width:100px; max-width:min(42vw,156px); justify-self:end}
+    .best-price .v{font-size:clamp(1rem,4.7vw,1.24rem); font-weight:900; line-height:1.07; white-space:normal; overflow-wrap:anywhere; word-break:break-word; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+    .best-price .v.free{
+      color:#7dffb1;
+      text-shadow:0 0 12px rgba(125,255,177,.18);
+    }
+    .best-price .k{margin-top:4px; color:var(--muted); font-size:.76rem}
+
+    .mode-switch{
+      pointer-events:auto; display:inline-flex; align-items:center; gap:6px;
+      width:max-content; padding:6px; border-radius:18px;
+      background:var(--glass); border:1px solid var(--stroke); box-shadow:var(--shadow); backdrop-filter:blur(14px);
+    }
+    .mode-btn{
+      border:none; cursor:pointer; padding:8px 11px; border-radius:12px;
+      background:transparent; color:#dce9ff; font-size:.82rem; font-weight:800;
+      display:flex; align-items:center; gap:6px;
+    }
+    .mode-btn.active{
+      background:linear-gradient(180deg,rgba(89,168,255,.24),rgba(44,131,255,.18));
+      color:#fff; border:1px solid rgba(89,168,255,.35);
+    }
+
+    .icon-btn{
+      pointer-events:auto; width:58px; height:58px; border:none; border-radius:20px;
+      background:var(--glass-strong); color:var(--text); border:1px solid var(--stroke);
+      box-shadow:var(--shadow); backdrop-filter:blur(14px); font-size:24px; cursor:pointer;
+    }
+    .small-help{justify-self:end; width:50px; height:50px; border-radius:18px; font-size:22px}
+
+    .center-origin{
+      position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:700; pointer-events:none; text-align:center;
+    }
+    .center-origin .car{
+      width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+      background:linear-gradient(180deg,#ffe9a3,#ffc84d); border:2px solid rgba(255,255,255,.92);
+      color:#473300; font-size:23px; box-shadow:0 10px 24px rgba(0,0,0,.25); margin:0 auto;
+    }
+    .center-origin .shadow{width:30px; height:8px; border-radius:50%; background:rgba(0,0,0,.25); margin:5px auto 0}
+
+    .bottom-ui{
+      position:fixed; left:10px; right:10px; bottom:calc(var(--safe-bottom) + 8px);
+      z-index:1000; display:flex; justify-content:center; pointer-events:none;
+    }
+    .bottom-buttons{
+      pointer-events:auto; display:grid; gap:10px; grid-template-columns:1fr 1fr;
+      width:min(640px,100%);
+    }
+    .recenter-btn,.results-btn{
+      display:flex; align-items:center; justify-content:center; gap:10px; border:none; border-radius:22px;
+      background:var(--glass-strong); color:var(--text); border:1px solid var(--stroke); box-shadow:var(--shadow);
+      backdrop-filter:blur(14px); padding:14px 18px; font-size:15px; font-weight:800; cursor:pointer;
+    }
+    .results-btn{
+      background:linear-gradient(180deg,rgba(89,168,255,.24),rgba(44,131,255,.18));
+      border-color:rgba(89,168,255,.35);
+    }
+
+    .sheet{
+      position:fixed; left:0; right:0; bottom:0; z-index:1100;
+      background:linear-gradient(180deg,var(--surface-start),var(--surface-end));
+      border-top-left-radius:28px; border-top-right-radius:28px; border-top:1px solid rgba(255,255,255,.09);
+      box-shadow:0 -22px 55px rgba(0,0,0,.34);
+      padding:10px 14px calc(var(--safe-bottom) + 16px); max-height:82vh; overflow:auto;
+      transform:translateY(calc(100% + 24px)); transition:transform .28s ease;
+    }
+    .sheet.open{transform:translateY(0)}
+    .sheet-handle{width:54px; height:5px; border-radius:999px; background:rgba(255,255,255,.18); margin:2px auto 12px}
+    .sheet-peek{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; cursor:pointer}
+    .sheet-peek-title{font-weight:900; font-size:1.02rem}
+    .sheet-peek-sub{margin-top:4px; color:var(--muted); font-size:.84rem}
+    .peek-pill{font-size:.8rem; color:#d9e8ff; background:rgba(89,168,255,.12); border:1px solid rgba(89,168,255,.24); padding:8px 12px; border-radius:999px; white-space:nowrap}
+
+    .section{border:1px solid rgba(255,255,255,.08); background:var(--card); border-radius:18px; padding:13px; margin-bottom:12px}
+    .section-title{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px}
+    .section-title h3{margin:0; font-size:.96rem}
+    .controls{display:grid; gap:12px}
+    .row{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+    label{display:block; margin:0 0 6px; color:#d7e6ff; font-size:.85rem; font-weight:700}
+    input,select,button.action{width:100%; border:none; border-radius:15px; font-size:.96rem}
+    input,select{color:var(--text); background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10); padding:13px 14px; outline:none}
+    input::placeholder{color:#8ca5c9}
+    .action{padding:13px 14px; cursor:pointer; color:#fff; font-weight:800; letter-spacing:.01em}
+    .btn-primary{background:linear-gradient(180deg,var(--blue),var(--blue2))}
+    .btn-secondary{background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.06)); border:1px solid rgba(255,255,255,.08)}
+
+    .status{border:1px solid rgba(255,255,255,.08); border-radius:16px; background:var(--card); padding:12px 13px; line-height:1.48; color:#dbe8ff; font-size:.9rem}
+    .status.ok{border-color:rgba(47,203,131,.3)}
+    .status.warn{border-color:rgba(255,214,107,.28)}
+    .status.err{border-color:rgba(255,93,108,.3)}
+
+    .cards{display:grid; gap:10px}
+    .feature-card{border:1px solid rgba(255,255,255,.08); border-radius:18px; background:var(--card); padding:13px}
+    .feature-card.best{border-color:rgba(255,214,107,.35); background:linear-gradient(180deg,rgba(255,214,107,.11),rgba(18,33,58,.95))}
+    .feature-card.nearest{border-color:rgba(89,168,255,.30); background:linear-gradient(180deg,rgba(89,168,255,.12),rgba(18,33,58,.95))}
+    .feature-card .mini{font-size:.76rem; text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px; font-weight:800; color:#d5e5ff}
+    .feature-card .name{font-size:1rem; font-weight:800; line-height:1.25}
+    .feature-card .price{font-size:1.28rem; font-weight:900; margin-top:8px}
+    .feature-card .meta{margin-top:8px; color:#c9d8f0; font-size:.88rem; line-height:1.45}
+    .actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
+    .action-link,.action-mini{
+      display:inline-flex; align-items:center; justify-content:center; text-decoration:none; padding:10px 12px; border-radius:12px;
+      border:1px solid rgba(255,255,255,.09); background:rgba(255,255,255,.07); color:#fff; font-size:.88rem; font-weight:700; min-width:116px; cursor:pointer;
+    }
+
+    .result-list{display:grid; gap:10px}
+    .result-item{border:1px solid rgba(255,255,255,.08); background:var(--card); border-radius:16px; padding:12px}
+    .result-top{display:flex; gap:10px; justify-content:space-between; align-items:flex-start}
+    .result-top h4{margin:0; font-size:.98rem; line-height:1.28}
+    .badge-price{font-weight:900; font-size:1rem; color:#dff1ff; white-space:nowrap}
+    .sub{margin-top:8px; color:var(--muted); font-size:.88rem; line-height:1.42}
+    .chips{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
+    .chip{display:inline-flex; align-items:center; gap:6px; font-size:.78rem; padding:7px 10px; border-radius:999px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.07); color:#d9e8ff}
+
+    .legend-pop{
+      position:fixed; right:10px; top:calc(var(--safe-top) + 152px); z-index:1080; width:min(280px, calc(100vw - 20px));
+      background:var(--glass-strong); border:1px solid var(--stroke); border-radius:18px; padding:14px;
+      box-shadow:var(--shadow); backdrop-filter:blur(14px); display:none;
+    }
+    .legend-pop.show{display:block}
+    .legend-row{display:flex; align-items:center; gap:10px; margin:10px 0; color:var(--muted)}
+    .dot{width:12px; height:12px; border-radius:50%}
+    .dot.default{background:#4aa1ff}
+    .dot.green{background:#2fcb83}
+    .dot.red{background:#ff5d6c}
+    .dot.car{background:#ffd66b}
+    .dot.ev{background:#8b5cf6}
+
+    .loading{display:inline-block; width:16px; height:16px; border-radius:50%; border:2px solid rgba(255,255,255,.2); border-top-color:#fff; animation:spin .8s linear infinite; vertical-align:middle; margin-right:8px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--popup-bg); color:var(--popup-fg); border-radius:16px}
+    .leaflet-control-zoom{display:none !important}
+    .leaflet-popup-content{margin:14px 15px}
+    .popup{font-family:Arial,sans-serif; min-width:220px; line-height:1.45}
+    .popup h4{margin:0 0 6px; font-size:15px; color:var(--popup-fg)}
+    .popup .a{color:#4e5f7f; font-size:13px; margin-bottom:8px}
+    .popup ul{margin:8px 0 10px 16px; padding:0}
+    .popup li{margin:2px 0}
+    .popup .links{display:grid; gap:6px}
+    .popup a{color:#0f62db; text-decoration:none; font-weight:700; font-size:13px}
+
+    .station-marker{
+      display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:50%;
+      box-shadow:0 8px 18px rgba(0,0,0,.25); border:2px solid rgba(255,255,255,.92); color:#fff; font-size:16px; font-weight:900;
+    }
+    .station-marker.default{background:linear-gradient(180deg,#61adff,#3188ff)}
+    .station-marker.green{background:linear-gradient(180deg,#44d994,#1fb86f)}
+    .station-marker.red{background:linear-gradient(180deg,#ff7b87,#f34b5e)}
+    .station-marker.ev{background:linear-gradient(180deg,#aa8cff,#7a4dff)}
+
+    .paypal-box{border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:12px; background:linear-gradient(180deg,rgba(255,214,107,.12),rgba(18,33,58,.96))}
+    .paypal-link{display:inline-flex; align-items:center; justify-content:center; text-decoration:none; padding:11px 13px; border-radius:12px; background:linear-gradient(180deg,#ffd86e,#ffbd33); color:#4a3200; font-weight:900; width:100%}
+
+    .results-modal-overlay{
+      position:fixed; inset:0; background:rgba(3,8,18,.58); z-index:1350; display:none; align-items:flex-end; justify-content:center; backdrop-filter:blur(3px);
+    }
+    .results-modal-overlay.show{display:flex}
+    .results-modal{
+      width:min(720px,100vw); max-height:88vh; overflow:auto; background:linear-gradient(180deg,var(--surface-start),var(--surface-end));
+      border-top-left-radius:28px; border-top-right-radius:28px; border:1px solid rgba(255,255,255,.10);
+      box-shadow:0 -22px 55px rgba(0,0,0,.34); padding:12px 16px calc(var(--safe-bottom) + 18px);
+    }
+    .results-modal-head{display:flex; gap:12px; align-items:flex-start; justify-content:space-between; margin-bottom:12px}
+    .results-modal-title{font-size:1.16rem; font-weight:900; line-height:1.2; margin:0}
+    .results-modal-sub{margin-top:4px; color:var(--muted); font-size:.9rem}
+
+    .station-modal-overlay{
+      position:fixed; inset:0; background:rgba(3,8,18,.58); z-index:1400; display:none; align-items:flex-end; justify-content:center; backdrop-filter:blur(3px);
+    }
+    .station-modal-overlay.show{display:flex}
+    .station-modal{
+      width:min(720px,100vw); max-height:88vh; overflow:auto; background:linear-gradient(180deg,var(--surface-start),var(--surface-end));
+      border-top-left-radius:28px; border-top-right-radius:28px; border:1px solid rgba(255,255,255,.10);
+      box-shadow:0 -22px 55px rgba(0,0,0,.34); padding:12px 16px calc(var(--safe-bottom) + 18px);
+    }
+    .station-modal-head{display:flex; gap:12px; align-items:flex-start; justify-content:space-between; margin-bottom:12px}
+    .station-modal-title{font-size:1.28rem; font-weight:900; line-height:1.15; margin:0}
+    .station-modal-sub{margin-top:6px; color:var(--muted); font-size:.9rem; line-height:1.45}
+    .station-modal-close{
+      border:none; width:46px; height:46px; border-radius:16px; background:rgba(255,255,255,.08); color:#fff;
+      font-size:28px; cursor:pointer; flex:0 0 auto; border:1px solid rgba(255,255,255,.08);
+    }
+    .modal-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px}
+    .modal-stat{border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.05); border-radius:16px; padding:12px}
+    .modal-stat .k{font-size:.8rem; color:var(--muted); margin-bottom:6px}
+    .modal-stat .v{font-size:1.06rem; font-weight:900}
+    .modal-prices,.modal-ev{
+      margin-top:12px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.05); border-radius:16px; padding:12px;
+    }
+    .modal-prices ul{margin:8px 0 0 18px; padding:0}
+    .modal-prices li{margin:4px 0; color:#dfeaff}
+    .modal-mini-list{display:grid; gap:8px; margin-top:8px}
+    .modal-mini-item{padding:10px 12px; border-radius:12px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06)}
+    .modal-photo{width:100%; max-height:220px; object-fit:cover; border-radius:12px; border:1px solid rgba(255,255,255,.08)}
+    .modal-link{color:#8fc4ff; text-decoration:none; word-break:break-all}
+    .modal-actions{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px}
+    .modal-action{
+      display:flex; align-items:center; justify-content:center; min-height:48px; border-radius:15px; text-decoration:none; font-weight:800; cursor:pointer; border:none; font-size:.95rem;
+    }
+    .modal-action.primary{background:linear-gradient(180deg,var(--blue),var(--blue2)); color:#fff}
+    .modal-action.secondary{background:rgba(255,255,255,.07); color:#fff; border:1px solid rgba(255,255,255,.08)}
+
+    @media (min-width: 900px){
+      .sheet{
+        left:auto; right:16px; width:390px; max-height:86vh; border-radius:26px; top:16px; bottom:16px; padding-bottom:16px;
+        transform:translateX(calc(100% + 24px));
+      }
+      .sheet.open{transform:translateX(0)}
+      .sheet-handle{display:none}
+      .bottom-ui{left:auto; right:420px; justify-content:flex-end}
+      .bottom-buttons{width:min(460px, calc(100vw - 440px))}
+      .top-ui{left:16px; right:420px}
+    }
+
+    html{scroll-behavior:smooth}
+    body, input, select, button{font-synthesis-weight:none; text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale}
+    button, a, input, select{transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease, background-color .18s ease, opacity .18s ease}
+    .icon-btn:hover,.recenter-btn:hover,.action:hover,.action-link:hover,.action-mini:hover,.modal-action:hover,.best-pill:hover{transform:translateY(-1px)}
+    .icon-btn:active,.recenter-btn:active,.action:active,.action-link:active,.action-mini:active,.modal-action:active,.best-pill:active{transform:translateY(0)}
+    :focus-visible{outline:3px solid rgba(89,168,255,.42); outline-offset:2px}
+    .sheet,.station-modal,.results-modal{scrollbar-width:thin; scrollbar-color:rgba(158,180,213,.55) transparent}
+    .sheet::-webkit-scrollbar,.station-modal::-webkit-scrollbar,.results-modal::-webkit-scrollbar{width:10px}
+    .sheet::-webkit-scrollbar-thumb,.station-modal::-webkit-scrollbar-thumb,.results-modal::-webkit-scrollbar-thumb{background:rgba(158,180,213,.32); border-radius:999px; border:2px solid transparent; background-clip:padding-box}
+    .section,.feature-card,.result-item,.status,.legend-pop,.best-pill,.mode-switch,.icon-btn,.recenter-btn,.results-btn,.modal-stat,.modal-prices,.modal-ev{backface-visibility:hidden}
+    .top-row{grid-template-columns:minmax(0,1fr) auto; align-items:start}
+    .result-item,.feature-card,.section,.status{box-shadow:0 10px 26px rgba(0,0,0,.14)}
+    .section-title h3,.sheet-peek-title{letter-spacing:.01em}
+    .best-title,.name,.result-top h4{overflow-wrap:anywhere}
+    .action-link,.action-mini,.modal-action,.recenter-btn,.results-btn,.icon-btn,.mode-btn,.best-pill{touch-action:manipulation}
+    .icon-btn[aria-expanded="true"]{background:linear-gradient(180deg,rgba(89,168,255,.22),rgba(44,131,255,.18)); border-color:rgba(89,168,255,.34)}
+    .legend-pop.show{animation:fadeIn .18s ease}
+    .sheet.open,.station-modal-overlay.show .station-modal,.results-modal-overlay.show .results-modal{will-change:transform}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+    .soft-refresh #map,.soft-refresh .result-list,.soft-refresh .cards,.soft-refresh .best-pill{opacity:.88}
+    .soft-refresh #map{filter:saturate(.94)}
+    #map,.result-list,.cards,.best-pill{transition:opacity .22s ease, filter .22s ease}
+
+    .expand-modal-overlay{
+      position:fixed; inset:0; background:rgba(3,8,18,.58); z-index:1420; display:none; align-items:center; justify-content:center; padding:18px;
+    }
+    .expand-modal-overlay.show{display:flex}
+    .expand-modal{
+      width:min(520px,100%); border-radius:18px; border:1px solid var(--stroke); background:linear-gradient(180deg,var(--surface-start),var(--surface-end));
+      box-shadow:var(--shadow); padding:16px;
+    }
+    .expand-modal-title{margin:0; font-size:1.06rem; font-weight:900}
+    .expand-modal-text{margin-top:10px; color:var(--muted); line-height:1.45}
+    .expand-modal-actions{display:flex; gap:10px; margin-top:14px}
+    .expand-modal-actions .modal-action{flex:1}
+
+    body[data-theme='light'] .best-pill-icon{background:rgba(17,54,99,.08); border-color:rgba(17,54,99,.16); color:#123f75}
+    body[data-theme='light'] .best-pill{background:linear-gradient(145deg,#f4f8ff,#e5eefb); border-color:rgba(20,62,108,.24)}
+    body[data-theme='light'] .best-kicker{color:#3f5678}
+    body[data-theme='light'] .best-title,body[data-theme='light'] .best-price .v,body[data-theme='light'] .best-price .k{color:#102d52}
+    body[data-theme='light'] .best-sub,body[data-theme='light'] .sheet-peek-sub,body[data-theme='light'] .sub,body[data-theme='light'] .modal-stat .k{color:#4f6280}
+    body[data-theme='light'] .mode-btn{color:#2b4163}
+    body[data-theme='light'] .mode-btn.active{background:linear-gradient(180deg,rgba(41,125,231,.16),rgba(31,105,200,.11)); color:#0e305a; border-color:rgba(41,125,231,.28)}
+    body[data-theme='light'] .feature-card .mini{color:#304b6f}
+    body[data-theme='light'] .feature-card .meta{color:#385170}
+    body[data-theme='light'] .badge-price{color:#1a426f}
+    body[data-theme='light'] .status{color:#1f3557}
+    body[data-theme='light'] input,body[data-theme='light'] select{background:rgba(15,66,118,.04); border-color:rgba(15,66,118,.18); color:#12223d}
+    body[data-theme='light'] label{color:#2d4566}
+    body[data-theme='light'] .status.ok{border-color:rgba(36,176,111,.38)}
+    body[data-theme='light'] .status.warn{border-color:rgba(212,167,56,.45)}
+    body[data-theme='light'] .status.err{border-color:rgba(226,80,95,.45)}
+    body[data-theme='light'] .chip{background:rgba(15,66,118,.05); border-color:rgba(15,66,118,.14); color:#264368}
+    body[data-theme='light'] .action-link,body[data-theme='light'] .action-mini,body[data-theme='light'] .modal-action.secondary,body[data-theme='light'] .btn-secondary{background:rgba(15,66,118,.06); color:#173963; border-color:rgba(15,66,118,.16)}
+    body[data-theme='light'] .station-modal-close{background:rgba(15,66,118,.08); color:#123561; border-color:rgba(15,66,118,.16)}
+    body[data-theme='light'] .results-btn{background:linear-gradient(180deg,#d9ebff,#c8e2ff); color:#123f6c; border-color:rgba(44,131,255,.36)}
+
+    @media (max-width: 599px){
+      .top-ui{left:8px; right:8px; gap:7px}
+      .bottom-ui{left:8px; right:8px; bottom:calc(var(--safe-bottom) + 6px)}
+      .bottom-buttons{gap:8px}
+      .best-pill{padding:11px 12px; gap:8px; border-radius:20px; grid-template-columns:auto minmax(0,1fr) minmax(92px,38vw)}
+      .best-pill-icon{width:40px; height:40px; font-size:18px}
+      .best-title{font-size:.95rem}
+      .best-sub,.best-price .k{font-size:.78rem}
+      .best-price{min-width:92px; max-width:min(44vw,142px)}
+      .best-price .v{font-size:clamp(.96rem,4.9vw,1.14rem)}
+      .mode-switch{width:100%; justify-content:space-between}
+      .mode-btn{flex:1; justify-content:center}
+      .icon-btn{width:52px; height:52px; border-radius:18px; font-size:22px}
+      .small-help{width:46px; height:46px; border-radius:16px}
+      .sheet{padding-left:12px; padding-right:12px; max-height:85vh}
+      .modal-grid,.modal-actions,.row{grid-template-columns:1fr}
+      .action-link,.action-mini{min-width:0; flex:1}
+      .center-origin .car{width:44px; height:44px; font-size:21px}
+    }
+
+    @media (min-width: 900px){
+      .sheet{width:min(410px, calc(100vw - 32px));}
+      .section-scroll{padding-right:2px}
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      *,*::before,*::after{animation:none !important; transition:none !important; scroll-behavior:auto !important}
+    }
+
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div id="map"></div>
+
+    <div class="top-ui">
+      <div class="top-row">
+        <div class="pill-stack" id="pillStack">
+          <div class="best-pill" id="bestPill">
+            <div class="best-pill-icon" id="bestPillIcon">⛽</div>
+            <div class="best-pill-content">
+              <div class="best-kicker" id="bestPillKicker">Más barata cercana</div>
+              <div class="best-title" id="bestPillTitle">—</div>
+              <div class="best-sub" id="bestPillSub">—</div>
+            </div>
+            <div class="best-price">
+              <div class="v" id="bestPillPrice">—</div>
+              <div class="k" id="bestPillDistance">—</div>
+            </div>
+          </div>
+          <div class="best-pill" id="secondPill" style="display:none">
+            <div class="best-pill-icon" id="secondPillIcon">⚡</div>
+            <div class="best-pill-content">
+              <div class="best-kicker" id="secondPillKicker">Usage cost más económico</div>
+              <div class="best-title" id="secondPillTitle">—</div>
+              <div class="best-sub" id="secondPillSub">—</div>
+            </div>
+            <div class="best-price">
+              <div class="v" id="secondPillPrice">—</div>
+              <div class="k" id="secondPillDistance">—</div>
+            </div>
+          </div>
+        </div>
+        <button class="icon-btn" id="toggleSheetBtn" type="button" aria-label="Configuración" aria-controls="sheet" aria-expanded="false">⚙</button>
+      </div>
+
+      <div class="mode-switch">
+        <button class="mode-btn active" id="modeFossilBtn" type="button">⛽ <span data-i18n="mode_fossil">Fósil</span></button>
+        <button class="mode-btn" id="modeElectricBtn" type="button">⚡ <span data-i18n="mode_electric">Eléctrico</span></button>
+      </div>
+
+      <div class="help-wrap">
+        <button class="icon-btn small-help" id="helpBtn" type="button" aria-label="Help" aria-expanded="false">?</button>
+      </div>
+    </div>
+
+    <div class="center-origin">
+      <div class="car">🚗</div>
+      <div class="shadow"></div>
+    </div>
+
+    <div class="bottom-ui">
+      <div class="bottom-buttons">
+        <button class="recenter-btn" id="recenterBtn" type="button">
+          <span>◎</span>
+          <span data-i18n="center_map">Centrar mapa</span>
+        </button>
+        <button class="results-btn" id="resultsBtn" type="button">
+          <span>📋</span>
+          <span data-i18n="results_btn">Resultados</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="legend-pop" id="legendPop">
+      <div style="font-weight:900;margin-bottom:8px" data-i18n="legend_title">Leyenda</div>
+      <div class="legend-row"><span class="dot car"></span><span data-i18n="legend_you">Tu posición</span></div>
+      <div class="legend-row"><span class="dot default"></span><span data-i18n="legend_normal">Gasolinera normal</span></div>
+      <div class="legend-row"><span class="dot green"></span><span data-i18n="legend_best">Más barata</span></div>
+      <div class="legend-row"><span class="dot red"></span><span data-i18n="legend_worst">Más cara</span></div>
+      <div class="legend-row"><span class="dot ev"></span><span data-i18n="legend_ev">Punto de recarga</span></div>
+    </div>
+
+    <aside class="sheet" id="sheet" aria-label="Panel de configuración">
+      <div class="sheet-handle"></div>
+      <div class="sheet-peek" id="sheetPeek">
+        <div>
+          <div class="sheet-peek-title" data-i18n="config_panel">Configuración</div>
+          <div class="sheet-peek-sub" id="sheetPeekSub">0 resultados</div>
+        </div>
+        <div class="peek-pill" id="peekPill">7 km</div>
+      </div>
+
+      <div class="section-scroll">
+        <div class="section">
+          <div class="section-title"><h3 data-i18n="search_title">Búsqueda</h3></div>
+          <div class="controls">
+            <div>
+              <label for="addressInput" data-i18n="address_label">Dirección</label>
+              <input id="addressInput" type="text" placeholder="Ej.: Elche, Alicante">
+            </div>
+            <div class="row">
+              <button class="action btn-primary" id="searchAddressBtn" data-i18n="search_btn">Buscar dirección</button>
+              <button class="action btn-secondary" id="locateBtn" data-i18n="locate_btn">Mi ubicación</button>
+            </div>
+            <div class="row">
+              <div>
+                <label for="fuelType" data-i18n="fuel_label">Combustible</label>
+                <select id="fuelType">
+                  <option value="Precio Gasolina 95 E5">Gasolina 95</option>
+                  <option value="Precio Gasolina 98 E5">Gasolina 98</option>
+                  <option value="Precio Gasoleo A">Diésel</option>
+                  <option value="Precio Gasoleo Premium">Diésel Premium</option>
+                  <option value="Precio GLP">GLP</option>
+                  <option value="Precio GNC">GNC</option>
+                  <option value="Precio GNL">GNL</option>
+                  <option value="Precio Hidrogeno">Hidrógeno</option>
+                </select>
+              </div>
+              <div>
+                <label for="radiusKm" data-i18n="radius_label">Radio (km)</label>
+                <input id="radiusKm" type="number" min="1" max="120" step="1" value="7" />
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label for="maxResults" data-i18n="max_results">Máximo</label>
+                <input id="maxResults" type="number" min="5" max="40" step="1" value="18" />
+              </div>
+              <div>
+                <label data-i18n="language_label">Idioma</label>
+                <select id="languageSelect">
+                  <option value="es">Español</option>
+                  <option value="en">English</option>
+                  <option value="fr">Français</option>
+                </select>
+              </div>
+            </div>
+                        <div>
+              <label for="themeSelect" data-i18n="theme_label">Tema</label>
+              <select id="themeSelect">
+                <option value="light" data-i18n="theme_light">Claro por defecto</option>
+                <option value="dark" data-i18n="theme_dark">Oscuro por defecto</option>
+                <option value="system" data-i18n="theme_system">Sistema</option>
+              </select>
+            </div>
+            <div class="status warn" id="status">—</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title"><h3 data-i18n="featured_title">Destacadas</h3></div>
+          <div class="cards">
+            <div class="feature-card best">
+              <div class="mini" id="bestCardLabel">Gasolinera más económica</div>
+              <div class="name" id="bestName">—</div>
+              <div class="price" id="bestPrice">—</div>
+              <div class="meta" id="bestMeta">—</div>
+              <div class="actions">
+                <a id="bestRoute" class="action-link" href="#" target="_blank" rel="noopener noreferrer" data-i18n="go_maps">Google Maps</a>
+                <button id="bestFocusBtn" class="action-mini" data-i18n="show_map">Ver en mapa</button>
+              </div>
+            </div>
+
+            <div class="feature-card nearest">
+              <div class="mini" id="nearestCardLabel">Gasolinera más cercana</div>
+              <div class="name" id="nearestName">—</div>
+              <div class="price" id="nearestPrice">—</div>
+              <div class="meta" id="nearestMeta">—</div>
+              <div class="actions">
+                <a id="nearestRoute" class="action-link" href="#" target="_blank" rel="noopener noreferrer" data-i18n="go_maps">Google Maps</a>
+                <button id="nearestFocusBtn" class="action-mini" data-i18n="show_map">Ver en mapa</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title"><h3 data-i18n="results_title">Resultados</h3></div>
+          <div class="sub" style="margin-top:0" data-i18n="results_modal_hint">Pulsa Resultados abajo para ver la lista completa.</div>
+        </div>
+
+        <div class="section">
+          <div class="section-title"><h3 data-i18n="stats_title">Estadística y apoyo</h3></div>
+          <div id="statsText" class="sub" style="margin-top:0">—</div>
+          <div class="paypal-box" style="margin-top:12px">
+            <div style="font-weight:900;margin-bottom:8px" data-i18n="coffee_title">Invítame a café</div>
+            <div style="color:var(--muted);font-size:.86rem;line-height:1.45;margin-bottom:10px" data-i18n="coffee_sub">Construido por Eugenio Moya Pérez.</div>
+            <a class="paypal-link" href="https://www.paypal.me/eugeniomoya/1.5" target="_blank" rel="noopener noreferrer" data-i18n="coffee_btn">Abrir PayPal.me · 1,5 €</a>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="results-modal-overlay" id="resultsModalOverlay" aria-hidden="true">
+    <div class="results-modal" role="dialog" aria-modal="true" aria-labelledby="resultsModalTitle">
+      <div class="sheet-handle"></div>
+      <div class="results-modal-head">
+        <div style="min-width:0;flex:1">
+          <h2 class="results-modal-title" id="resultsModalTitle" data-i18n="results_modal_title">Resultados cercanos</h2>
+          <div class="results-modal-sub" id="resultsModalSub">—</div>
+        </div>
+        <button class="station-modal-close" id="resultsModalCloseBtn" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="result-list" id="results"></div>
+      <div class="modal-actions">
+        <button class="modal-action secondary" id="resultsModalCloseActionBtn" type="button" data-i18n="close_btn" style="grid-column:1 / -1;">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="expand-modal-overlay" id="expandRadiusOverlay" aria-hidden="true">
+    <div class="expand-modal" role="dialog" aria-modal="true" aria-labelledby="expandRadiusTitle">
+      <h3 class="expand-modal-title" id="expandRadiusTitle" data-i18n="expand_radius_title">Sin resultados en el radio actual</h3>
+      <div class="expand-modal-text" id="expandRadiusText" data-i18n="expand_radius_msg">No hay resultados en este radio. Quieres ampliarlo automaticamente hasta encontrar al menos uno?</div>
+      <div class="expand-modal-actions">
+        <button class="modal-action secondary" id="expandRadiusCancelBtn" type="button" data-i18n="expand_radius_cancel">Cancelar</button>
+        <button class="modal-action primary" id="expandRadiusOkBtn" type="button" data-i18n="expand_radius_ok">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="station-modal-overlay" id="stationModalOverlay" aria-hidden="true">
+    <div class="station-modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="sheet-handle"></div>
+      <div class="station-modal-head">
+        <div style="min-width:0;flex:1">
+          <div class="sheet-peek-sub" id="modalKicker">Detalle</div>
+          <h2 class="station-modal-title" id="modalTitle">—</h2>
+          <div class="station-modal-sub" id="modalAddress">—</div>
+        </div>
+        <button class="station-modal-close" id="modalCloseBtn" type="button" aria-label="Close">×</button>
+      </div>
+
+      <div class="modal-grid">
+        <div class="modal-stat"><div class="k" data-i18n="route_label">Ruta</div><div class="v" id="modalDistance">—</div></div>
+        <div class="modal-stat"><div class="k" data-i18n="duration_label">Tiempo</div><div class="v" id="modalDuration">—</div></div>
+        <div class="modal-stat"><div class="k" data-i18n="status_label">Estado</div><div class="v" id="modalStatus">—</div></div>
+        <div class="modal-stat"><div class="k" id="modalExtraLabel">Dato</div><div class="v" id="modalBestDay">—</div></div>
+      </div>
+
+      <div class="modal-prices">
+        <div style="font-weight:900" id="modalPricesTitle">Precios</div>
+        <ul id="modalPrices"></ul>
+      </div>
+
+      <div class="modal-ev">
+        <div style="font-weight:900" data-i18n="ev_info">Recarga eléctrica</div>
+        <div id="modalEvInfo" style="margin-top:8px;color:#dfeaff;line-height:1.45">—</div>
+      </div>
+
+      <div class="modal-ev" id="modalEvDetailsBox" style="display:none">
+        <div style="font-weight:900" data-i18n="location_details">Location details</div>
+        <div id="modalEvLocation" style="margin-top:8px;color:#dfeaff;line-height:1.5">—</div>
+      </div>
+
+      <div class="modal-ev" id="modalEvEquipmentBox" style="display:none">
+        <div style="font-weight:900" data-i18n="equipment_details">Equipment details</div>
+        <div id="modalEvEquipment" style="margin-top:8px;color:#dfeaff;line-height:1.5">—</div>
+      </div>
+
+      <div class="modal-ev" id="modalEvRestrictionsBox" style="display:none">
+        <div style="font-weight:900" data-i18n="usage_restrictions">Usage restrictions</div>
+        <div id="modalEvRestrictions" style="margin-top:8px;color:#dfeaff;line-height:1.5">—</div>
+      </div>
+
+      <div class="modal-ev" id="modalEvOperatorBox" style="display:none">
+        <div style="font-weight:900" data-i18n="network_operator">Network / Operator</div>
+        <div id="modalEvOperator" style="margin-top:8px;color:#dfeaff;line-height:1.5">—</div>
+      </div>
+
+      <div class="modal-ev" id="modalEvAdditionalBox" style="display:none">
+        <div style="font-weight:900" data-i18n="additional_information">Additional information</div>
+        <div id="modalEvAdditional" style="margin-top:8px;color:#dfeaff;line-height:1.5">—</div>
+      </div>
+
+      <div class="modal-ev" id="modalEvPhotosBox" style="display:none">
+        <div style="font-weight:900" data-i18n="photos_title">Photos</div>
+        <div id="modalEvPhotos" style="margin-top:8px;display:grid;gap:8px">—</div>
+      </div>
+
+      <div class="modal-actions">
+        <a class="modal-action primary" id="modalNavigateBtn" href="#" target="_blank" rel="noopener noreferrer" data-i18n="go_maps">Google Maps</a>
+        <button class="modal-action secondary" id="modalShareBtn" type="button" data-i18n="share_station">Compartir</button>
+        <button class="modal-action secondary" id="modalCloseActionBtn" type="button" data-i18n="close_btn" style="grid-column:1 / -1;">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+    const API_URL = "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/";
+    const GEOCODER_URL = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=es&q=";
+    const OSRM_URL = "https://router.project-osrm.org/table/v1/driving/";
+    const OCM_URL = "https://api.openchargemap.io/v3/poi/";
+    const OCM_API_KEY = "23332df6-3ca9-4c28-8a6f-e7ff0d4a16f0";
+    const SETTINGS_KEY = "glc_mobile_clean_settings_v1";
+    const HISTORY_KEY = "glc_mobile_clean_history_v1";
+    const STATIC_AREA_KEY = "ugasolineras_static_area_v1";
+    const VOLATILE_PRICE_KEY = "ugasolineras_volatile_prices_v1";
+    const STATIC_AREA_RADIUS_KM = 50;
+    const STATIC_CACHE_RECENTER_KM = 5;
+    const STATIC_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+    const LOCATION_REFRESH_INTERVAL_MS = 30000;
+    const BACKGROUND_PRICE_REFRESH_KEY = "ugasolineras_bg_last_refresh_v1";
+    const SESSION_RESULTS_TTL_MS = 3 * 60 * 1000;
+
+    const priceFields = [
+      ["Precio Gasolina 95 E5", "gas95"], ["Precio Gasolina 98 E5", "gas98"], ["Precio Gasoleo A", "diesel"],
+      ["Precio Gasoleo Premium", "diesel_premium"], ["Precio GLP", "glp"], ["Precio GNC", "gnc"],
+      ["Precio GNL", "gnl"], ["Precio Hidrogeno", "hydrogen"]
+    ];
+
+    const dict = {
+      es: {
+        results_btn:"Resultados", results_modal_title:"Resultados cercanos", results_modal_hint:"Pulsa Resultados abajo para ver la lista completa.", fallback_cached:"Sin red: mostrando datos guardados.", static_cache_ready:"Datos base (50 km) guardados.",
+        best_bar:"Más barata cercana", nearest_charge_bar:"Recarga más cercana", center_map:"Centrar mapa",
+        legend_title:"Leyenda", legend_you:"Tu posición", legend_normal:"Gasolinera normal", legend_best:"Más barata",
+        legend_worst:"Más cara", legend_ev:"Punto de recarga", config_panel:"Configuración", search_title:"Búsqueda",
+        address_label:"Dirección", search_btn:"Buscar dirección", locate_btn:"Mi ubicación", fuel_label:"Combustible",
+        radius_label:"Radio (km)", max_results:"Máximo", language_label:"Idioma", theme_label:"Tema", theme_light:"Claro por defecto", theme_dark:"Oscuro por defecto", theme_system:"Sistema", featured_title:"Destacadas",
+        best_station:"Gasolinera más económica", nearest_station:"Gasolinera más cercana", nearest_charge:"Recarga más cercana",
+        cheapest_charge:"Recarga con usage cost más económico", results_title:"Resultados", stats_title:"Estadística y apoyo",
+        coffee_title:"Invítame a café", coffee_sub:"Construido por Eugenio Moya Pérez.", coffee_btn:"Abrir PayPal.me · 1,5 €",
+        go_maps:"Google Maps", show_map:"Ver en mapa", no_results:"Sin resultados", search_to_start:"Busca una dirección o usa tu ubicación", geo_cta:"Usar mi ubicación real", geo_prompt_msg:"Permite el acceso a la ubicación para mostrar estaciones cercanas desde tu posición real.", geo_granted_msg:"Permiso de ubicación concedido. Cargando estaciones cercanas...", geo_denied_msg:"El acceso a la ubicación está bloqueado. Puedes activarlo en el navegador o seguir buscando por dirección.",
+        location_found:"Dirección encontrada", using_center:"Se usará el centro actual del mapa como origen.", geo_error:"No se pudo obtener tu ubicación.",
+        address_error:"No se ha encontrado esa dirección.", loading:"Cargando resultados cercanos...", cheapest_msg:"La opción más económica cuesta",
+        and_is:"y está a", from_origin:"de tu origen.", no_stations:"No hay resultados en el radio seleccionado.", expand_radius_title:"Sin resultados en el radio actual", expand_radius_msg:"No hay resultados en {radius} km. Quieres ampliar automaticamente el radio hasta encontrar al menos uno?", expand_radius_ok:"Aceptar", expand_radius_cancel:"Cancelar", expand_radius_progress:"Ampliando radio... {radius} km", expand_radius_done:"Radio ampliado a {radius} km para mostrar resultados.", bg_refresh_done:"Precios actualizados para uso sin conexion.", route:"Ruta", mins:"min",
+        open_now:"Abierta ahora", closed_now:"Cerrada ahora", opens_at:"Abre a las", open24:"24h",
+        best_day:"Suele ser más barata el", based_on:"basado en", samples:"muestras locales", no_prediction:"Aún no hay suficiente histórico.",
+        gas95:"Gasolina 95", gas98:"Gasolina 98", diesel:"Diésel", diesel_premium:"Diésel Premium", glp:"GLP", gnc:"GNC", gnl:"GNL", hydrogen:"Hidrógeno",
+        recenter_hint:"Arrastra el mapa: el coche queda fijo en el centro.", results_count:"resultados", station_detail:"Detalle", route_label:"Ruta",
+        duration_label:"Tiempo", status_label:"Estado", best_day_label:"Día más barato", all_prices:"Todos los precios disponibles",
+        share_station:"Compartir", close_btn:"Cerrar", copied:"Enlace copiado o compartido.", ev_info:"Recarga eléctrica",
+        ev_yes:"Con punto de recarga", ev_no:"Sin punto de recarga asociado", ev_unknown:"Recarga no especificada", ev_separate:"Punto de recarga independiente",
+        ev_operator:"Operador", ev_connectors:"Conectores", ev_power:"Potencia", ev_price:"Tarifa", ev_no_price:"Precio no disponible",
+        mode_fossil:"Fósil", mode_electric:"Eléctrico", usage_cost_cheapest:"Usage cost más económico", sale_type:"Tipo de venta", all_fuel_prices:"Todos los precios publicados", searching_ev:"Buscando punto de recarga...", sale_public:"Venta al público en general", sale_restricted:"Venta restringida a asociados o cooperativistas", electric_tariff:"Tarifa visible", location_details:"Location details", equipment_details:"Equipment details", usage_restrictions:"Usage restrictions", network_operator:"Network / Operator", additional_information:"Additional information", photos_title:"Fotos", loading_details:"Cargando detalles...", android_geo_insecure:"En Chrome para Android, la ubicación suele requerir abrir la web desde HTTPS o localhost. Si has abierto el HTML directamente, usa la búsqueda por dirección o súbelo a un hosting/servidor local.", geo_try_again:"Intentar ubicación", geo_unavailable_context:"La ubicación no está disponible en este contexto del navegador."
+      },
+      en: {
+        results_btn:"Results", results_modal_title:"Nearby results", results_modal_hint:"Use the Results button below to open the full list.", fallback_cached:"Offline mode: showing cached data.", static_cache_ready:"Base area data (50 km) stored.",
+        best_bar:"Cheapest nearby", nearest_charge_bar:"Nearest charger", center_map:"Center map",
+        legend_title:"Legend", legend_you:"Your position", legend_normal:"Normal station", legend_best:"Cheapest",
+        legend_worst:"Most expensive", legend_ev:"Charging point", config_panel:"Configuration", search_title:"Search",
+        address_label:"Address", search_btn:"Search address", locate_btn:"My location", fuel_label:"Fuel",
+        radius_label:"Radius (km)", max_results:"Maximum", language_label:"Language", theme_label:"Theme", theme_light:"Light default", theme_dark:"Dark default", theme_system:"System", featured_title:"Highlights",
+        best_station:"Cheapest station", nearest_station:"Nearest station", nearest_charge:"Nearest charger",
+        cheapest_charge:"Cheapest usage cost charger", results_title:"Results", stats_title:"Stats and support",
+        coffee_title:"Buy me a coffee", coffee_sub:"Built by Eugenio Moya Pérez.", coffee_btn:"Open PayPal.me · €1.5",
+        go_maps:"Google Maps", show_map:"Show on map", no_results:"No results", search_to_start:"Search an address or use your location", geo_cta:"Use my real location", geo_prompt_msg:"Allow location access to show nearby stations from your real position.", geo_granted_msg:"Location permission granted. Loading your nearby stations...", geo_denied_msg:"Location access is blocked. You can enable it in the browser and still search manually by address.",
+        location_found:"Address found", using_center:"The current map center will be used as origin.", geo_error:"Could not get your location.",
+        address_error:"That address could not be found.", loading:"Loading nearby results...", cheapest_msg:"The cheapest option costs",
+        and_is:"and is", from_origin:"from your origin.", no_stations:"No results in the selected radius.", expand_radius_title:"No results in current radius", expand_radius_msg:"There are no results within {radius} km. Do you want to expand the radius automatically until at least one result is found?", expand_radius_ok:"OK", expand_radius_cancel:"Cancel", expand_radius_progress:"Expanding radius... {radius} km", expand_radius_done:"Radius expanded to {radius} km to show results.", bg_refresh_done:"Prices refreshed for offline use.", route:"Route", mins:"min",
+        open_now:"Open now", closed_now:"Closed now", opens_at:"Opens at", open24:"24h",
+        best_day:"Usually cheapest on", based_on:"based on", samples:"local samples", no_prediction:"Not enough history yet.",
+        gas95:"Gasoline 95", gas98:"Gasoline 98", diesel:"Diesel", diesel_premium:"Premium diesel", glp:"LPG", gnc:"CNG", gnl:"LNG", hydrogen:"Hydrogen",
+        recenter_hint:"Drag the map: the car stays fixed in the center.", results_count:"results", station_detail:"Details", route_label:"Route",
+        duration_label:"Time", status_label:"Status", best_day_label:"Best weekday", all_prices:"All available prices",
+        share_station:"Share", close_btn:"Close", copied:"Link copied or shared.", ev_info:"EV charging",
+        ev_yes:"Charging point available", ev_no:"No linked charging point", ev_unknown:"Charging not specified", ev_separate:"Standalone charging point",
+        ev_operator:"Operator", ev_connectors:"Connectors", ev_power:"Power", ev_price:"Pricing", ev_no_price:"Price unavailable",
+        mode_fossil:"Fossil", mode_electric:"Electric", usage_cost_cheapest:"Cheapest usage cost", sale_type:"Sale type", all_fuel_prices:"All published prices", searching_ev:"Searching charging point...", sale_public:"Sale to the general public", sale_restricted:"Sale restricted to members or cooperative associates", electric_tariff:"Visible tariff", location_details:"Location details", equipment_details:"Equipment details", usage_restrictions:"Usage restrictions", network_operator:"Network / Operator", additional_information:"Additional information", photos_title:"Photos", loading_details:"Loading details...", android_geo_insecure:"En Chrome para Android, la ubicación suele requerir abrir la web desde HTTPS o localhost. Si has abierto el HTML directamente, usa la búsqueda por dirección o súbelo a un hosting/servidor local.", geo_try_again:"Intentar ubicación", geo_unavailable_context:"La ubicación no está disponible en este contexto del navegador."
+      },
+      fr: {
+        results_btn:"Résultats", results_modal_title:"Résultats proches", results_modal_hint:"Utilisez le bouton Résultats pour ouvrir la liste complète.", fallback_cached:"Mode hors ligne : données en cache affichées.", static_cache_ready:"Données de base (50 km) enregistrées.",
+        best_bar:"La moins chère proche", nearest_charge_bar:"Recharge la plus proche", center_map:"Centrer la carte",
+        legend_title:"Légende", legend_you:"Votre position", legend_normal:"Station normale", legend_best:"La moins chère",
+        legend_worst:"La plus chère", legend_ev:"Point de recharge", config_panel:"Configuration", search_title:"Recherche",
+        address_label:"Adresse", search_btn:"Chercher l'adresse", locate_btn:"Ma position", fuel_label:"Carburant",
+        radius_label:"Rayon (km)", max_results:"Maximum", language_label:"Langue", theme_label:"Theme", theme_light:"Clair par defaut", theme_dark:"Sombre par defaut", theme_system:"Systeme", featured_title:"Mises en avant",
+        best_station:"Station la moins chère", nearest_station:"Station la plus proche", nearest_charge:"Recharge la plus proche",
+        cheapest_charge:"Recharge au usage cost le plus bas", results_title:"Résultats", stats_title:"Statistiques et soutien",
+        coffee_title:"Offrez-moi un café", coffee_sub:"Construit par Eugenio Moya Pérez.", coffee_btn:"Ouvrir PayPal.me · 1,5 €",
+        go_maps:"Google Maps", show_map:"Voir sur la carte", no_results:"Aucun résultat", search_to_start:"Cherchez une adresse ou utilisez votre position", geo_cta:"Utiliser ma position réelle", geo_prompt_msg:"Autorisez l’accès à la position pour afficher les stations proches depuis votre emplacement réel.", geo_granted_msg:"Autorisation de position accordée. Chargement des stations proches...", geo_denied_msg:"L’accès à la position est bloqué. Vous pouvez l’activer dans le navigateur ou continuer avec une recherche manuelle.",
+        location_found:"Adresse trouvée", using_center:"Le centre actuel de la carte sera utilisé comme origine.", geo_error:"Impossible d'obtenir votre position.",
+        address_error:"Cette adresse est introuvable.", loading:"Chargement des résultats proches...", cheapest_msg:"L'option la moins chère coûte",
+        and_is:"et se trouve à", from_origin:"de votre origine.", no_stations:"Aucun résultat dans le rayon sélectionné.", expand_radius_title:"Aucun résultat dans ce rayon", expand_radius_msg:"Aucun résultat dans {radius} km. Voulez-vous élargir automatiquement le rayon jusqu’à trouver au moins un résultat ?", expand_radius_ok:"OK", expand_radius_cancel:"Annuler", expand_radius_progress:"Extension du rayon... {radius} km", expand_radius_done:"Rayon élargi à {radius} km pour afficher des résultats.", bg_refresh_done:"Prix actualisés pour usage hors ligne.", route:"Trajet", mins:"min",
+        open_now:"Ouverte maintenant", closed_now:"Fermée maintenant", opens_at:"Ouvre à", open24:"24h",
+        best_day:"Habituellement la moins chère le", based_on:"basé sur", samples:"échantillons locaux", no_prediction:"Pas encore assez d'historique.",
+        gas95:"Essence 95", gas98:"Essence 98", diesel:"Diesel", diesel_premium:"Diesel premium", glp:"GPL", gnc:"GNC", gnl:"GNL", hydrogen:"Hydrogène",
+        recenter_hint:"Déplacez la carte : la voiture reste fixe au centre.", results_count:"résultats", station_detail:"Détails", route_label:"Trajet",
+        duration_label:"Temps", status_label:"État", best_day_label:"Jour le moins cher", all_prices:"Tous les prix disponibles",
+        share_station:"Partager", close_btn:"Fermer", copied:"Lien copié ou partagé.", ev_info:"Recharge électrique",
+        ev_yes:"Borne disponible", ev_no:"Aucun point lié", ev_unknown:"Recharge non précisée", ev_separate:"Point de recharge indépendant",
+        ev_operator:"Opérateur", ev_connectors:"Connecteurs", ev_power:"Puissance", ev_price:"Tarification", ev_no_price:"Prix indisponible",
+        mode_fossil:"Fossile", mode_electric:"Électrique", usage_cost_cheapest:"Usage cost le plus bas", sale_type:"Type de vente", all_fuel_prices:"Tous les prix publiés", searching_ev:"Recherche d’un point de recharge...", sale_public:"Vente au public en général", sale_restricted:"Vente restreinte aux adhérents ou coopérateurs", electric_tariff:"Tarif visible", location_details:"Détails du lieu", equipment_details:"Détails de l’équipement", usage_restrictions:"Restrictions d’usage", network_operator:"Réseau / Opérateur", additional_information:"Informations supplémentaires", photos_title:"Photos", loading_details:"Chargement des détails...", android_geo_insecure:"Sur Chrome Android, la localisation exige généralement HTTPS ou localhost. Si vous avez ouvert le HTML directement, utilisez la recherche d’adresse ou hébergez-le localement.", geo_try_again:"Réessayer la localisation", geo_unavailable_context:"La localisation n’est pas disponible dans ce contexte du navigateur."
+      }
+    };
+
+    const weekdays = {
+      es:['domingo','lunes','martes','miércoles','jueves','viernes','sábado'],
+      en:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+      fr:['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi']
+    };
+
+    const el = id => document.getElementById(id);
+    const debounce = (fn, wait = 220) => {
+      let timer;
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), wait);
+      };
+    };
+    const clampNumber = (value, min, fallback, max = Infinity) => Math.min(max, Math.max(min, Number(value) || fallback));
+    const setSheetOpen = (isOpen) => {
+      sheet.classList.toggle('open', !!isOpen);
+      updateConfigButtonIcon();
+    };
+
+    const statusEl = el('status'), resultsEl = el('results'), fuelTypeEl = el('fuelType'), radiusKmEl = el('radiusKm'),
+      maxResultsEl = el('maxResults'), locateBtn = el('locateBtn'), searchAddressBtn = el('searchAddressBtn'),
+      addressInput = el('addressInput'), languageSelect = el('languageSelect'), themeSelect = el('themeSelect'), sheet = el('sheet'),
+      sheetPeek = el('sheetPeek'), toggleSheetBtn = el('toggleSheetBtn'), recenterBtn = el('recenterBtn'), resultsBtn = el('resultsBtn'),
+      helpBtn = el('helpBtn'), legendPop = el('legendPop'), pillStack = el('pillStack'), bestPill = el('bestPill'), bestPillIcon = el('bestPillIcon'),
+      bestPillKicker = el('bestPillKicker'), bestPillTitle = el('bestPillTitle'), bestPillSub = el('bestPillSub'),
+      bestPillPrice = el('bestPillPrice'), bestPillDistance = el('bestPillDistance'),
+      secondPill = el('secondPill'), secondPillIcon = el('secondPillIcon'), secondPillKicker = el('secondPillKicker'), secondPillTitle = el('secondPillTitle'), secondPillSub = el('secondPillSub'), secondPillPrice = el('secondPillPrice'), secondPillDistance = el('secondPillDistance'),
+      bestName = el('bestName'), bestPrice = el('bestPrice'), bestMeta = el('bestMeta'), bestRoute = el('bestRoute'),
+      bestFocusBtn = el('bestFocusBtn'), nearestName = el('nearestName'), nearestPrice = el('nearestPrice'),
+      nearestMeta = el('nearestMeta'), nearestRoute = el('nearestRoute'), nearestFocusBtn = el('nearestFocusBtn'),
+      statsText = el('statsText'), peekPill = el('peekPill'), sheetPeekSub = el('sheetPeekSub'),
+      bestCardLabel = el('bestCardLabel'), nearestCardLabel = el('nearestCardLabel'),
+      modeFossilBtn = el('modeFossilBtn'), modeElectricBtn = el('modeElectricBtn'),
+      modalOverlay = el('stationModalOverlay'), modalKicker = el('modalKicker'), modalTitle = el('modalTitle'),
+      modalAddress = el('modalAddress'), modalDistance = el('modalDistance'), modalDuration = el('modalDuration'),
+      modalStatus = el('modalStatus'), modalBestDay = el('modalBestDay'), modalPrices = el('modalPrices'),
+      modalEvInfo = el('modalEvInfo'), modalNavigateBtn = el('modalNavigateBtn'), modalShareBtn = el('modalShareBtn'),
+      modalCloseBtn = el('modalCloseBtn'), modalCloseActionBtn = el('modalCloseActionBtn'),
+      modalExtraLabel = el('modalExtraLabel'), modalPricesTitle = el('modalPricesTitle'),
+      modalEvDetailsBox = el('modalEvDetailsBox'), modalEvLocation = el('modalEvLocation'),
+      modalEvEquipmentBox = el('modalEvEquipmentBox'), modalEvEquipment = el('modalEvEquipment'),
+      modalEvRestrictionsBox = el('modalEvRestrictionsBox'), modalEvRestrictions = el('modalEvRestrictions'),
+      modalEvOperatorBox = el('modalEvOperatorBox'), modalEvOperator = el('modalEvOperator'),
+      modalEvAdditionalBox = el('modalEvAdditionalBox'), modalEvAdditional = el('modalEvAdditional'),
+      modalEvPhotosBox = el('modalEvPhotosBox'), modalEvPhotos = el('modalEvPhotos'),
+      resultsModalOverlay = el('resultsModalOverlay'), resultsModalTitle = el('resultsModalTitle'),
+      resultsModalSub = el('resultsModalSub'), resultsModalCloseBtn = el('resultsModalCloseBtn'),
+      resultsModalCloseActionBtn = el('resultsModalCloseActionBtn'),
+      expandRadiusOverlay = el('expandRadiusOverlay'), expandRadiusTitle = el('expandRadiusTitle'),
+      expandRadiusText = el('expandRadiusText'), expandRadiusCancelBtn = el('expandRadiusCancelBtn'),
+      expandRadiusOkBtn = el('expandRadiusOkBtn');
+
+    let map;
+    let mapTileLayer = null;
+    let activeMapTheme = null;
+    let stationMarkers = [];
+    let cachedStations = [];
+    let sourceDate = null;
+    let origin = null;
+    let homeOrigin = null;
+    let currentStations = [];
+    let currentEvPoints = [];
+    let settings = loadSettings();
+    let loadRequestId = 0;
+    let loadAbortController = null;
+    let evDetailsAbortController = null;
+    let evNearbyAbortController = null;
+    let locationRefreshTimer = null;
+    let backgroundRefreshTimer = null;
+    let locationRefreshInFlight = false;
+    let noDataPromptInFlight = false;
+    let smoothRefreshCounter = 0;
+    let sessionResultsCache = {};
+    let staticCachePriming = null;
+    let staticAreaCache = loadStaticAreaCache();
+    let volatilePriceCache = loadVolatilePriceCache();
+
+    function loadSettings() {
+      try {
+        return Object.assign({ lang:'es', mode:'fossil', fuel:'Precio Gasoleo A', radius:7, maxResults:18, themeMode:'light', lastOrigin:null }, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'));
+      } catch {
+        return { lang:'es', mode:'fossil', fuel:'Precio Gasoleo A', radius:7, maxResults:18, themeMode:'light', lastOrigin:null };
+      }
+    }
+    function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+    function getHistory() {
+      try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '{"stations":{}}'); }
+      catch { return { stations:{} }; }
+    }
+    function saveHistory(db) { localStorage.setItem(HISTORY_KEY, JSON.stringify(db)); }
+    function t(key) { return (dict[settings.lang] && dict[settings.lang][key]) || key; }
+    function tp(key, params = {}) {
+      const template = String(t(key));
+      return template.replace(/\{(\w+)\}/g, (_, name) => params[name] != null ? String(params[name]) : '');
+    }
+    function normalizeThemeMode(value) {
+      if (value === 'dark' || value === 'system') return value;
+      return 'light';
+    }
+    function getEffectiveTheme() {
+      if (settings.themeMode === 'system') {
+        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      return normalizeThemeMode(settings.themeMode);
+    }
+    function getTileConfig(theme) {
+      if (theme === 'dark') {
+        return {
+          url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+          options: { subdomains: 'abcd', maxZoom: 20, attribution: '&copy; OpenStreetMap contributors &copy; CARTO' }
+        };
+      }
+      return {
+        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        options: { subdomains: 'abcd', maxZoom: 20, attribution: '&copy; OpenStreetMap contributors &copy; CARTO' }
+      };
+    }
+    function applyMapTheme(force = false) {
+      if (!map) return;
+      const theme = getEffectiveTheme();
+      if (!force && activeMapTheme === theme) return;
+      const config = getTileConfig(theme);
+      if (mapTileLayer) map.removeLayer(mapTileLayer);
+      mapTileLayer = L.tileLayer(config.url, config.options).addTo(map);
+      activeMapTheme = theme;
+    }
+    function applyThemeMode() {
+      settings.themeMode = normalizeThemeMode(settings.themeMode);
+      const theme = getEffectiveTheme();
+      document.body.setAttribute('data-theme', theme);
+      applyMapTheme();
+    }
+    function buildSessionCacheKey(mode, radiusKm, fuelKey) {
+      if (!origin) return null;
+      const lat = Number(origin.latitude).toFixed(3);
+      const lon = Number(origin.longitude).toFixed(3);
+      return `${mode}|${fuelKey || '-'}|${radiusKm}|${lat}|${lon}`;
+    }
+    function readSessionCache(key) {
+      if (!key) return null;
+      const record = sessionResultsCache[key];
+      if (!record) return null;
+      if ((Date.now() - Number(record.updatedAt || 0)) > SESSION_RESULTS_TTL_MS) {
+        delete sessionResultsCache[key];
+        return null;
+      }
+      return record.payload || null;
+    }
+    function writeSessionCache(key, payload) {
+      if (!key || !payload) return;
+      sessionResultsCache[key] = { updatedAt: Date.now(), payload };
+    }
+    function smoothRefreshStart() {
+      smoothRefreshCounter += 1;
+      document.body.classList.add('soft-refresh');
+    }
+    function smoothRefreshEnd() {
+      smoothRefreshCounter = Math.max(0, smoothRefreshCounter - 1);
+      if (!smoothRefreshCounter) document.body.classList.remove('soft-refresh');
+    }
+    function persistCurrentOrigin() {
+      if (!origin || !Number.isFinite(origin.latitude) || !Number.isFinite(origin.longitude)) return;
+      settings.lastOrigin = {
+        latitude: origin.latitude,
+        longitude: origin.longitude,
+        label: origin.label || `${origin.latitude.toFixed(5)}, ${origin.longitude.toFixed(5)}`,
+        updatedAt: Date.now()
+      };
+      saveSettings();
+    }
+    function loadNativeStaticAreaCache() {
+      try {
+        if (!window.UGasolinerasBridge || typeof window.UGasolinerasBridge.getCachedStaticArea !== 'function') return null;
+        const raw = String(window.UGasolinerasBridge.getCachedStaticArea() || '');
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : null;
+      } catch {
+        return null;
+      }
+    }
+    function saveNativeStaticAreaCache(value) {
+      try {
+        if (!window.UGasolinerasBridge || typeof window.UGasolinerasBridge.saveCachedStaticArea !== 'function') return;
+        window.UGasolinerasBridge.saveCachedStaticArea(value ? JSON.stringify(value) : '');
+      } catch {}
+    }
+    function loadNativeVolatilePriceCache() {
+      try {
+        if (!window.UGasolinerasBridge || typeof window.UGasolinerasBridge.getCachedVolatilePrices !== 'function') return null;
+        const raw = String(window.UGasolinerasBridge.getCachedVolatilePrices() || '');
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : null;
+      } catch {
+        return null;
+      }
+    }
+    function saveNativeVolatilePriceCache(value) {
+      try {
+        if (!window.UGasolinerasBridge || typeof window.UGasolinerasBridge.saveCachedVolatilePrices !== 'function') return;
+        window.UGasolinerasBridge.saveCachedVolatilePrices(value ? JSON.stringify(value) : '');
+      } catch {}
+    }
+    function loadStaticAreaCache() {
+      try {
+        const fromLocal = JSON.parse(localStorage.getItem(STATIC_AREA_KEY) || 'null');
+        if (fromLocal && typeof fromLocal === 'object') return fromLocal;
+      } catch {}
+      const nativeCache = loadNativeStaticAreaCache();
+      if (nativeCache) {
+        try { localStorage.setItem(STATIC_AREA_KEY, JSON.stringify(nativeCache)); } catch {}
+        return nativeCache;
+      }
+      return null;
+    }
+    function saveStaticAreaCache(value) {
+      staticAreaCache = value || null;
+      if (!value) localStorage.removeItem(STATIC_AREA_KEY);
+      else localStorage.setItem(STATIC_AREA_KEY, JSON.stringify(value));
+      saveNativeStaticAreaCache(value || null);
+    }
+    function normalizeVolatileCache(raw) {
+      return {
+        stations: raw && raw.stations && typeof raw.stations === 'object' ? raw.stations : {},
+        ev: raw && raw.ev && typeof raw.ev === 'object' ? raw.ev : {}
+      };
+    }
+    function loadVolatilePriceCache() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(VOLATILE_PRICE_KEY) || '{}');
+        const normalized = normalizeVolatileCache(parsed);
+        if (Object.keys(normalized.stations).length || Object.keys(normalized.ev).length) return normalized;
+      } catch {}
+      const nativeCache = normalizeVolatileCache(loadNativeVolatilePriceCache() || {});
+      if (Object.keys(nativeCache.stations).length || Object.keys(nativeCache.ev).length) {
+        try { localStorage.setItem(VOLATILE_PRICE_KEY, JSON.stringify(nativeCache)); } catch {}
+        return nativeCache;
+      }
+      return { stations: {}, ev: {} };
+    }
+    function saveVolatilePriceCache(value) {
+      volatilePriceCache = normalizeVolatileCache(value || { stations:{}, ev:{} });
+      localStorage.setItem(VOLATILE_PRICE_KEY, JSON.stringify(volatilePriceCache));
+      saveNativeVolatilePriceCache(volatilePriceCache);
+    }
+    function beginLoadRequest() {
+      loadRequestId += 1;
+      if (loadAbortController) loadAbortController.abort();
+      loadAbortController = new AbortController();
+      return { requestId: loadRequestId, signal: loadAbortController.signal };
+    }
+    function isLoadRequestStale(requestId) { return requestId !== loadRequestId; }
+    function isAbortError(error) {
+      if (!error) return false;
+      const name = String(error.name || '');
+      const msg = String(error.message || '').toLowerCase();
+      return name === 'AbortError' || msg.includes('aborted') || msg.includes('abort');
+    }
+    function safeHttpUrl(value) {
+      if (value == null) return null;
+      try {
+        const url = new URL(String(value), location.href);
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+        return url.toString();
+      } catch {
+        return null;
+      }
+    }
+    function normalizeCacheCenter(centerLike) {
+      if (!centerLike) return null;
+      const latitude = Number(centerLike.latitude);
+      const longitude = Number(centerLike.longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+      return { latitude, longitude };
+    }
+    function extractStaticFuelMap(raw) {
+      const fuels = {};
+      priceFields.forEach(([key]) => {
+        const value = parseSpanishNumber(raw ? raw[key] : null);
+        if (Number.isFinite(value)) fuels[key] = value;
+      });
+      return fuels;
+    }
+    function pruneCachesAroundCenter(centerLike, radiusKm = STATIC_AREA_RADIUS_KM, options = {}) {
+      if (!staticAreaCache || !Array.isArray(staticAreaCache.stations) || !Array.isArray(staticAreaCache.evPoints)) return false;
+      const center = normalizeCacheCenter(centerLike) || normalizeCacheCenter(origin) || normalizeCacheCenter(staticAreaCache.center);
+      if (!center) return false;
+      const maxRadius = Number.isFinite(radiusKm) ? Number(radiusKm) : STATIC_AREA_RADIUS_KM;
+      const nextStations = staticAreaCache.stations.filter(st => Number.isFinite(st?.lat) && Number.isFinite(st?.lon) && haversineKm(center.latitude, center.longitude, st.lat, st.lon) <= maxRadius);
+      const nextEvPoints = staticAreaCache.evPoints.filter(ev => Number.isFinite(ev?.lat) && Number.isFinite(ev?.lon) && haversineKm(center.latitude, center.longitude, ev.lat, ev.lon) <= maxRadius);
+      const keepCenterUpdated = Boolean(options && options.updateCenter);
+      const oldCenter = normalizeCacheCenter(staticAreaCache.center);
+      const centerChanged = keepCenterUpdated && (!oldCenter || oldCenter.latitude !== center.latitude || oldCenter.longitude !== center.longitude);
+      const staticChanged = centerChanged || nextStations.length !== staticAreaCache.stations.length || nextEvPoints.length !== staticAreaCache.evPoints.length;
+      if (staticChanged) {
+        saveStaticAreaCache({
+          center: keepCenterUpdated ? center : (oldCenter || center),
+          updatedAt: Date.now(),
+          stations: nextStations,
+          evPoints: nextEvPoints
+        });
+      }
+
+      const ids = {
+        stationIds: new Set(nextStations.map(st => st.id).filter(Boolean)),
+        evIds: new Set(nextEvPoints.map(ev => ev.id).filter(Boolean))
+      };
+      const sourceVolatile = normalizeVolatileCache(volatilePriceCache || {});
+      const nextVolatile = { stations: {}, ev: {} };
+      Object.keys(sourceVolatile.stations || {}).forEach(id => {
+        if (ids.stationIds.has(id)) nextVolatile.stations[id] = sourceVolatile.stations[id];
+      });
+      Object.keys(sourceVolatile.ev || {}).forEach(id => {
+        if (ids.evIds.has(id)) nextVolatile.ev[id] = sourceVolatile.ev[id];
+      });
+      const volatileChanged = Object.keys(nextVolatile.stations).length !== Object.keys(sourceVolatile.stations || {}).length
+        || Object.keys(nextVolatile.ev).length !== Object.keys(sourceVolatile.ev || {}).length;
+      if (volatileChanged) saveVolatilePriceCache(nextVolatile);
+      return staticChanged || volatileChanged;
+    }
+    function buildStaticStationRecord(raw) {
+      const lat = parseSpanishNumber(raw['Latitud']);
+      const lon = parseSpanishNumber(raw['Longitud (WGS84)']);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+      return {
+        id: raw['IDEESS'] || `${lat}-${lon}`,
+        brand: raw['Rótulo'] || 'Sin marca',
+        address: `${raw['Dirección'] || ''}, ${raw['Localidad'] || ''}`.replace(/^,\s*|,\s*$/g, ''),
+        schedule: raw['Horario'] || '24H',
+        municipality: raw['Municipio'] || raw['Localidad'] || '',
+        province: raw['Provincia'] || '',
+        lat, lon,
+        saleType: raw['Tipo Venta'] || '—',
+        electricInfo: extractElectricInfo(raw),
+        fuels: extractStaticFuelMap(raw)
+      };
+    }
+    function buildStaticEvRecord(entity) {
+      if (!entity || !Number.isFinite(entity.lat) || !Number.isFinite(entity.lon)) return null;
+      return {
+        id: entity.id,
+        brand: entity.brand || t('ev_separate'),
+        address: entity.address || '—',
+        lat: entity.lat,
+        lon: entity.lon,
+        operator: entity.operator || '—',
+        connectorsText: entity.connectorsText || '—',
+        powerText: entity.powerText || '—',
+        statusLabel: entity.statusLabel || t('ev_separate'),
+        electricInfo: entity.electricInfo || { hasAny:true, label:t('ev_unknown') }
+      };
+    }
+    function updateVolatileStationPrices(stations, fuelKey) {
+      if (!stations || !stations.length) return;
+      const db = volatilePriceCache || { stations:{}, ev:{} };
+      const now = Date.now();
+      stations.forEach(s => {
+        if (!s || !s.id) return;
+        const rec = db.stations[s.id] || { fuels:{} };
+        rec.fuels = rec.fuels && typeof rec.fuels === 'object' ? rec.fuels : {};
+        if (s.raw) {
+          priceFields.forEach(([rawKey]) => {
+            const price = parseSpanishNumber(s.raw[rawKey]);
+            if (Number.isFinite(price)) rec.fuels[rawKey] = { price, updatedAt: now };
+          });
+        }
+        if (Number.isFinite(s.price)) rec.fuels[fuelKey] = { price: s.price, updatedAt: now };
+        db.stations[s.id] = rec;
+      });
+      saveVolatilePriceCache(db);
+    }
+    function updateVolatileEvPrices(evPoints) {
+      if (!evPoints || !evPoints.length) return;
+      const db = volatilePriceCache || { stations:{}, ev:{} };
+      const now = Date.now();
+      evPoints.forEach(s => {
+        if (!s || !s.id) return;
+        db.ev[s.id] = {
+          usageCost: s.usageCost || '',
+          usageCostValue: Number.isFinite(s.usageCostValue) ? s.usageCostValue : null,
+          powerText: s.powerText || '',
+          updatedAt: now
+        };
+      });
+      saveVolatilePriceCache(db);
+    }
+    function buildFallbackStationsFromCache(selectedFuel, radiusKm, maxResults) {
+      if (!origin || !staticAreaCache || !Array.isArray(staticAreaCache.stations)) return [];
+      const entries = staticAreaCache.stations
+        .map(st => {
+          const volatileFuels = volatilePriceCache?.stations?.[st.id]?.fuels || {};
+          const staticFuels = st && st.fuels && typeof st.fuels === 'object' ? st.fuels : {};
+          const selectedVolatile = Number(volatileFuels?.[selectedFuel]?.price);
+          const selectedStatic = Number(staticFuels[selectedFuel]);
+          const selectedPrice = Number.isFinite(selectedVolatile) ? selectedVolatile : selectedStatic;
+          if (!Number.isFinite(selectedPrice)) return null;
+          const lineDistanceKm = haversineKm(origin.latitude, origin.longitude, st.lat, st.lon);
+          const allPrices = priceFields
+            .map(([key, labelKey]) => {
+              const volatilePrice = Number(volatileFuels?.[key]?.price);
+              const staticPrice = Number(staticFuels[key]);
+              const value = Number.isFinite(volatilePrice) ? volatilePrice : staticPrice;
+              if (!Number.isFinite(value)) return null;
+              return { label: t(labelKey), value };
+            })
+            .filter(Boolean)
+            .sort((a,b) => a.value - b.value);
+          return {
+            id: st.id,
+            entityType:'fossil',
+            brand: st.brand,
+            address: st.address,
+            schedule: st.schedule,
+            municipality: st.municipality,
+            province: st.province,
+            lat: st.lat,
+            lon: st.lon,
+            lineDistanceKm,
+            routeDistanceKm: lineDistanceKm,
+            routeDurationMin: (lineDistanceKm / 50) * 60,
+            price: selectedPrice,
+            priceText: `${Number(selectedPrice).toFixed(3)} €/L`,
+            availablePrices: allPrices.slice(0, 5),
+            allPrices,
+            saleType: st.saleType || '—',
+            electricInfo: st.electricInfo || { hasAny:false, label:t('ev_no') },
+            raw: null
+          };
+        })
+        .filter(Boolean)
+        .filter(s => s.routeDistanceKm <= radiusKm)
+        .sort((a,b) => a.price !== b.price ? a.price - b.price : a.routeDistanceKm - b.routeDistanceKm)
+        .slice(0, maxResults);
+      return entries;
+    }
+    function buildFallbackEvFromCache(radiusKm, maxResults) {
+      if (!origin || !staticAreaCache || !Array.isArray(staticAreaCache.evPoints)) return [];
+      return staticAreaCache.evPoints
+        .map(st => {
+          const dynamic = volatilePriceCache?.ev?.[st.id] || {};
+          const lineDistanceKm = haversineKm(origin.latitude, origin.longitude, st.lat, st.lon);
+          const usageCost = dynamic.usageCost || t('ev_no_price');
+          return {
+            id: st.id,
+            entityType:'ev',
+            brand: st.brand,
+            address: st.address,
+            lat: st.lat,
+            lon: st.lon,
+            operator: st.operator || '—',
+            connectorsText: st.connectorsText || '—',
+            powerText: dynamic.powerText || st.powerText || '—',
+            usageCost,
+            usageCostValue: Number.isFinite(dynamic.usageCostValue) ? dynamic.usageCostValue : parseUsageCostValue(usageCost),
+            statusLabel: st.statusLabel || t('ev_separate'),
+            lineDistanceKm,
+            routeDistanceKm: lineDistanceKm,
+            routeDurationMin: (lineDistanceKm / 50) * 60,
+            electricInfo: st.electricInfo || { hasAny:true, label:t('ev_unknown') }
+          };
+        })
+        .filter(Boolean)
+        .filter(s => s.routeDistanceKm <= radiusKm)
+        .sort((a,b) => a.routeDistanceKm - b.routeDistanceKm)
+        .slice(0, maxResults);
+    }
+    async function ensureStaticAreaCache(signal) {
+      if (!origin) return;
+      pruneCachesAroundCenter(origin, STATIC_AREA_RADIUS_KM, { updateCenter: true });
+      if (staticAreaCache && staticAreaCache.center && Number.isFinite(staticAreaCache.center.latitude) && Number.isFinite(staticAreaCache.center.longitude)) {
+        const nearEnough = haversineKm(origin.latitude, origin.longitude, staticAreaCache.center.latitude, staticAreaCache.center.longitude) <= STATIC_CACHE_RECENTER_KM;
+        const freshEnough = (Date.now() - Number(staticAreaCache.updatedAt || 0)) < STATIC_CACHE_MAX_AGE_MS;
+        const hasContent = (Array.isArray(staticAreaCache.stations) && staticAreaCache.stations.length)
+          || (Array.isArray(staticAreaCache.evPoints) && staticAreaCache.evPoints.length);
+        if (nearEnough && freshEnough && hasContent) return;
+      }
+      if (staticCachePriming) return staticCachePriming;
+      staticCachePriming = (async () => {
+        if (!cachedStations.length) cachedStations = await fetchStations(signal);
+        const center = { latitude: origin.latitude, longitude: origin.longitude };
+        const stations = cachedStations
+          .map(raw => buildStaticStationRecord(raw))
+          .filter(Boolean)
+          .filter(st => haversineKm(center.latitude, center.longitude, st.lat, st.lon) <= STATIC_AREA_RADIUS_KM);
+        let evPoints = [];
+        try {
+          const fetched = await fetchEvPointsReal({ center, distanceKm: STATIC_AREA_RADIUS_KM, maxResults: 500, signal });
+          evPoints = fetched.map(buildStaticEvRecord).filter(Boolean);
+        } catch {}
+        saveStaticAreaCache({ center, updatedAt: Date.now(), stations, evPoints });
+        pruneCachesAroundCenter(center, STATIC_AREA_RADIUS_KM, { updateCenter: true });
+      })().finally(() => { staticCachePriming = null; });
+      return staticCachePriming;
+    }
+    function openResultsModal() {
+      if (!resultsModalOverlay) return;
+      if (resultsModalSub) {
+        const amount = settings.mode === 'electric' ? currentEvPoints.length : currentStations.length;
+        resultsModalSub.textContent = `${amount} ${t('results_count')} · ${settings.radius} km`;
+      }
+      resultsModalOverlay.classList.add('show');
+      resultsModalOverlay.setAttribute('aria-hidden', 'false');
+    }
+    function closeResultsModal() {
+      if (!resultsModalOverlay) return;
+      resultsModalOverlay.classList.remove('show');
+      resultsModalOverlay.setAttribute('aria-hidden', 'true');
+    }
+    function buildExpandedRadiusSteps(baseRadius, maxRadius = 120) {
+      const list = [];
+      let radius = Number(baseRadius) || 1;
+      while (radius < maxRadius) {
+        radius += radius < 20 ? 5 : 10;
+        list.push(Math.min(maxRadius, radius));
+      }
+      return list;
+    }
+    function askToExpandRadius(baseRadius) {
+      if (!expandRadiusOverlay || noDataPromptInFlight) return Promise.resolve(false);
+      noDataPromptInFlight = true;
+      expandRadiusTitle.textContent = t('expand_radius_title');
+      expandRadiusText.textContent = tp('expand_radius_msg', { radius: baseRadius });
+      expandRadiusCancelBtn.textContent = t('expand_radius_cancel');
+      expandRadiusOkBtn.textContent = t('expand_radius_ok');
+      expandRadiusOverlay.classList.add('show');
+      expandRadiusOverlay.setAttribute('aria-hidden', 'false');
+      return new Promise(resolve => {
+        const close = (accepted) => {
+          expandRadiusOverlay.classList.remove('show');
+          expandRadiusOverlay.setAttribute('aria-hidden', 'true');
+          expandRadiusCancelBtn.removeEventListener('click', onCancel);
+          expandRadiusOkBtn.removeEventListener('click', onOk);
+          expandRadiusOverlay.removeEventListener('click', onOverlay);
+          noDataPromptInFlight = false;
+          resolve(accepted);
+        };
+        const onCancel = () => close(false);
+        const onOk = () => close(true);
+        const onOverlay = (e) => { if (e.target === expandRadiusOverlay) close(false); };
+        expandRadiusCancelBtn.addEventListener('click', onCancel);
+        expandRadiusOkBtn.addEventListener('click', onOk);
+        expandRadiusOverlay.addEventListener('click', onOverlay);
+      });
+    }
+    function parseSpanishNumber(value) {
+      if (value == null) return NaN;
+      const normalized = String(value).trim().replace(",", ".");
+      if (!normalized || normalized === "0" || normalized === "0.000") return NaN;
+      return Number(normalized);
+    }
+    function formatKm(km) { if (!Number.isFinite(km)) return '—'; return km < 10 ? `${km.toFixed(1)} km` : `${Math.round(km)} km`; }
+    function formatMinutes(mins) {
+      if (!Number.isFinite(mins)) return '—';
+      if (mins < 60) return `${Math.round(mins)} ${t('mins')}`;
+      const h = Math.floor(mins / 60), m = Math.round(mins % 60);
+      return m ? `${h} h ${m} ${t('mins')}` : `${h} h`;
+    }
+    function haversineKm(lat1, lon1, lat2, lon2) {
+      const toRad = d => d * Math.PI / 180, R = 6371;
+      const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(a));
+    }
+    function escapeHtml(str) {
+      return String(str ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+    }
+    function setStatus(message, type='warn') {
+      statusEl.className = `status ${type}`;
+      statusEl.innerHTML = message;
+    }
+    function showGeolocationPromptStatus(type = 'warn') {
+      setStatus(`${escapeHtml(t('geo_prompt_msg'))}<div style="margin-top:10px"><button class="action btn-primary" id="statusGeoBtn" type="button">${escapeHtml(t('geo_cta'))}</button></div>`, type);
+      const statusGeoBtn = document.getElementById('statusGeoBtn');
+      if (statusGeoBtn) statusGeoBtn.addEventListener('click', () => requestPreciseLocation({ closeSheet: true }));
+    }
+    async function getGeolocationPermissionState() {
+      try {
+        if (!navigator.permissions || !navigator.permissions.query) return 'unknown';
+        const result = await navigator.permissions.query({ name: 'geolocation' });
+        return result && result.state ? result.state : 'unknown';
+      } catch {
+        return 'unknown';
+      }
+    }
+
+    function isAndroidChrome() {
+      const ua = navigator.userAgent || '';
+      return /Android/i.test(ua) && /Chrome|CriOS/i.test(ua) && !/EdgA|SamsungBrowser|OPR|Opera/i.test(ua);
+    }
+    function isLocalhostHost() {
+      return /^(localhost|127\.0\.0\.1)$/i.test(location.hostname || '');
+    }
+    function isGeolocationContextAllowed() {
+      return window.isSecureContext || location.protocol === 'https:' || isLocalhostHost();
+    }
+    function showInsecureGeolocationStatus(type = 'warn') {
+      const extra = isAndroidChrome() ? `<div style="margin-top:8px">${escapeHtml(t('android_geo_insecure'))}</div>` : '';
+      setStatus(`${escapeHtml(t('geo_unavailable_context'))}${extra}<div style="margin-top:10px"><button class="action btn-secondary" id="statusGeoRetryBtn" type="button">${escapeHtml(t('geo_try_again'))}</button></div>`, type);
+      const retryBtn = document.getElementById('statusGeoRetryBtn');
+      if (retryBtn) retryBtn.addEventListener('click', () => requestPreciseLocation({ closeSheet: true }).catch(() => {}));
+    }
+    function setBestPill(entity, mode='fossil') {
+      if (!entity) {
+        bestPillTitle.textContent = t('no_results');
+        bestPillSub.textContent = t('search_to_start');
+        bestPillPrice.textContent = '—';
+        bestPillPrice.classList.remove('free');
+        bestPillDistance.textContent = '—';
+        secondPillTitle.textContent = '—';
+        secondPillSub.textContent = '—';
+        secondPillPrice.textContent = '—';
+        secondPillPrice.classList.remove('free');
+        secondPillDistance.textContent = '—';
+        return;
+      }
+      bestPillTitle.textContent = getEntityTitle(entity);
+      bestPillSub.textContent = getEntityAddress(entity);
+      bestPillPrice.textContent = mode === 'electric' ? formatElectricTopValue(entity) : (entity.priceText || '—');
+      bestPillPrice.classList.toggle('free', mode === 'electric' && isFreeUsageCost(entity.usageCost));
+      bestPillDistance.textContent = formatKm(entity.routeDistanceKm);
+    }
+    function setSecondPill(entity) {
+      if (!entity) {
+        secondPillTitle.textContent = '—';
+        secondPillSub.textContent = '—';
+        secondPillPrice.textContent = '—';
+        secondPillPrice.classList.remove('free');
+        secondPillDistance.textContent = '—';
+        return;
+      }
+      secondPillIcon.textContent = '⚡';
+      secondPillKicker.textContent = t('usage_cost_cheapest');
+      secondPillTitle.textContent = getEntityTitle(entity);
+      secondPillSub.textContent = getEntityAddress(entity);
+      secondPillPrice.textContent = formatElectricPriceValue(entity);
+      secondPillPrice.classList.toggle('free', isFreeUsageCost(entity.usageCost));
+      secondPillDistance.textContent = formatKm(entity.routeDistanceKm);
+    }
+
+    function updateModeButtons() {
+      const isElectric = settings.mode === 'electric';
+      modeFossilBtn.classList.toggle('active', !isElectric);
+      modeElectricBtn.classList.toggle('active', isElectric);
+      bestPillIcon.textContent = isElectric ? '⚡' : '⛽';
+      bestPillKicker.textContent = isElectric ? t('nearest_charge_bar') : t('best_bar');
+      bestCardLabel.textContent = isElectric ? t('usage_cost_cheapest') : t('best_station');
+      nearestCardLabel.textContent = isElectric ? t('nearest_charge') : t('nearest_station');
+      fuelTypeEl.disabled = isElectric;
+      fuelTypeEl.style.opacity = isElectric ? '.55' : '1';
+      secondPill.style.display = isElectric ? 'flex' : 'none';
+      pillStack.classList.toggle('dual-electric', isElectric);
+    }
+    function translateUi() {
+      document.documentElement.lang = settings.lang;
+      document.querySelectorAll('[data-i18n]').forEach(node => node.textContent = t(node.dataset.i18n));
+      languageSelect.value = settings.lang;
+      themeSelect.value = normalizeThemeMode(settings.themeMode);
+      fuelTypeEl.value = settings.fuel;
+      radiusKmEl.value = settings.radius;
+      maxResultsEl.value = settings.maxResults;
+      addressInput.placeholder = settings.lang === 'es' ? 'Ej.: Elche, Alicante' : settings.lang === 'en' ? 'Example: Elche, Alicante' : 'Ex. : Elche, Alicante';
+      sheetPeekSub.textContent = (settings.mode === 'electric' ? currentEvPoints.length : currentStations.length) ? `${(settings.mode === 'electric' ? currentEvPoints.length : currentStations.length)} ${t('results_count')}` : t('search_to_start');
+      peekPill.textContent = `${settings.radius} km`;
+      if (expandRadiusTitle) expandRadiusTitle.textContent = t('expand_radius_title');
+      if (expandRadiusText && !noDataPromptInFlight) expandRadiusText.textContent = tp('expand_radius_msg', { radius: settings.radius });
+      updateModeButtons();
+      applyThemeMode();
+    }
+
+    function initMap() {
+      if (map) return;
+      map = L.map('map', { zoomControl: false }).setView([38.2669, -0.6985], 13);
+      applyMapTheme(true);
+      map.on('moveend', debounce(() => {
+        const c = map.getCenter();
+        origin = { latitude: c.lat, longitude: c.lng, label: `${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}` };
+        loadNearbyEntities(false, { allowNoDataExpansion: false, silentStatus: true });
+      }, 260));
+    }
+
+    function getStationIcon(type) {
+      const symbol = type === 'ev' ? '⚡' : '⛽';
+      return L.divIcon({
+        className:'',
+        html:`<div class="station-marker ${type}">${symbol}</div>`,
+        iconSize:[34,34], iconAnchor:[17,17], popupAnchor:[0,-14]
+      });
+    }
+    function clearStationMarkers() {
+      stationMarkers.forEach(m => map.removeLayer(m));
+      stationMarkers = [];
+    }
+    function getAvailablePrices(raw) {
+      return priceFields.map(([key, labelKey]) => ({ label: t(labelKey), value: parseSpanishNumber(raw[key]) }))
+        .filter(p => Number.isFinite(p.value)).sort((a,b) => a.value - b.value).slice(0,5);
+    }
+
+    function getAllPublishedPrices(raw) {
+      return priceFields
+        .map(([key, labelKey]) => ({ label: t(labelKey), value: parseSpanishNumber(raw[key]) }))
+        .filter(p => Number.isFinite(p.value))
+        .sort((a,b) => a.value - b.value);
+    }
+    function loadStationsFromNativeBridge() {
+      try {
+        if (!window.UGasolinerasBridge || typeof window.UGasolinerasBridge.getCachedFuelDataset !== 'function') return null;
+        const raw = window.UGasolinerasBridge.getCachedFuelDataset();
+        if (!raw) return null;
+        const data = JSON.parse(String(raw));
+        if (!data || !Array.isArray(data.ListaEESSPrecio)) return null;
+        sourceDate = data.Fecha || sourceDate;
+        return data.ListaEESSPrecio;
+      } catch {
+        return null;
+      }
+    }
+
+    async function fetchStations(signal) {
+      try {
+        const response = await fetch(API_URL, { headers: { Accept: 'application/json' }, signal });
+        if (!response.ok) throw new Error(`Error HTTP ${response.status}`);
+        const data = await response.json();
+        if (!data || !Array.isArray(data.ListaEESSPrecio)) throw new Error('Bad response');
+        sourceDate = data.Fecha || null;
+        return data.ListaEESSPrecio;
+      } catch (error) {
+        const nativeData = loadStationsFromNativeBridge();
+        if (nativeData && nativeData.length) return nativeData;
+        throw error;
+      }
+    }
+    async function geocodeAddress(query, signal) {
+      const response = await fetch(GEOCODER_URL + encodeURIComponent(query), { headers: { Accept:'application/json', 'Accept-Language': settings.lang }, signal });
+      if (!response.ok) throw new Error(t('address_error'));
+      const results = await response.json();
+      if (!Array.isArray(results) || !results.length) throw new Error(t('address_error'));
+      return results[0];
+    }
+    async function requestPreciseLocation({ closeSheet = false, showPromptOnFail = true, silent = false } = {}) {
+      if (!navigator.geolocation) throw new Error(t('geo_error'));
+      if (!isGeolocationContextAllowed()) {
+        if (showPromptOnFail) showInsecureGeolocationStatus('warn');
+        throw new Error(t('geo_unavailable_context'));
+      }
+      if (!silent) setStatus(`<span class="loading"></span>${escapeHtml(t('loading'))}`, 'warn');
+      const coords = await new Promise((resolve, reject) => {
+        const options = { enableHighAccuracy:true, timeout:15000, maximumAge:0 };
+        navigator.geolocation.getCurrentPosition(
+          pos => resolve(pos.coords),
+          err => {
+            if (err && err.code === 3) {
+              navigator.geolocation.getCurrentPosition(
+                pos2 => resolve(pos2.coords),
+                err2 => reject(err2 || err || new Error(t('geo_error'))),
+                { enableHighAccuracy:false, timeout:12000, maximumAge:300000 }
+              );
+            } else {
+              reject(err || new Error(t('geo_error')));
+            }
+          },
+          options
+        );
+      });
+      origin = { latitude: coords.latitude, longitude: coords.longitude, label: `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}` };
+      homeOrigin = { ...origin };
+      persistCurrentOrigin();
+      pruneCachesAroundCenter(origin, STATIC_AREA_RADIUS_KM, { updateCenter: true });
+      map.setView([origin.latitude, origin.longitude], 14);
+      if (closeSheet) setSheetOpen(false);
+      ensureStaticAreaCache().catch(() => {});
+      return coords;
+    }
+
+    async function handleInitialGeolocationFlow() {
+      if (!isGeolocationContextAllowed()) {
+        showInsecureGeolocationStatus('warn');
+        return false;
+      }
+      const permissionState = await getGeolocationPermissionState();
+      if (permissionState === 'granted') {
+        setStatus(t('geo_granted_msg'), 'ok');
+        try {
+          await requestPreciseLocation({ closeSheet: false, showPromptOnFail: false });
+          return true;
+        } catch {
+          setStatus(t('geo_error'), 'err');
+          return false;
+        }
+      }
+      if (permissionState === 'prompt' || permissionState === 'unknown') {
+        try {
+          await requestPreciseLocation({ closeSheet: false, showPromptOnFail: true, silent: true });
+          setStatus(t('geo_granted_msg'), 'ok');
+          return true;
+        } catch {
+          showGeolocationPromptStatus('warn');
+          return false;
+        }
+      }
+      setStatus(t('geo_denied_msg'), 'warn');
+      return false;
+    }
+
+    function extractElectricInfo(raw) {
+      const keys = Object.keys(raw || {});
+      const likelyKeys = keys.filter(k => {
+        const s = k.toLowerCase();
+        return s.includes('eléctr') || s.includes('electr') || s.includes('pdr') || s.includes('recarga') || s.includes('carg');
+      });
+      if (!likelyKeys.length) return { hasAny:false, label:t('ev_no') };
+      const parts = [];
+      likelyKeys.forEach(k => {
+        const v = raw[k];
+        if (v === null || v === undefined) return;
+        const txt = String(v).trim();
+        if (!txt || txt === '0' || txt.toLowerCase() === 'nan') return;
+        parts.push(`${k}: ${txt}`);
+      });
+      return parts.length ? { hasAny:true, label:parts.join(' · ') } : { hasAny:true, label:t('ev_unknown') };
+    }
+
+    function normalizeStation(raw, selectedFuel, originLat, originLon) {
+      const lat = parseSpanishNumber(raw['Latitud']);
+      const lon = parseSpanishNumber(raw['Longitud (WGS84)']);
+      const price = parseSpanishNumber(raw[selectedFuel]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(price)) return null;
+      return {
+        id: raw['IDEESS'] || `${lat}-${lon}-${price}`,
+        entityType:'fossil',
+        brand: raw['Rótulo'] || 'Sin marca',
+        address: `${raw['Dirección'] || ''}, ${raw['Localidad'] || ''}`.replace(/^,\s*|,\s*$/g, ''),
+        schedule: raw['Horario'] || '24H',
+        municipality: raw['Municipio'] || raw['Localidad'] || '',
+        province: raw['Provincia'] || '',
+        lat, lon,
+        lineDistanceKm: haversineKm(originLat, originLon, lat, lon),
+        routeDistanceKm: NaN, routeDurationMin: NaN,
+        price, priceText: `${price.toFixed(3)} €/L`,
+        availablePrices: getAvailablePrices(raw),
+        allPrices: getAllPublishedPrices(raw),
+        saleType: raw['Tipo Venta'] || '—',
+        electricInfo: extractElectricInfo(raw),
+        raw
+      };
+    }
+
+    async function enrichWithDrivingDistances(entities, signal) {
+      if (!entities.length || !origin) return entities;
+      const coordString = [`${origin.longitude},${origin.latitude}`, ...entities.map(s => `${s.lon},${s.lat}`)].join(';');
+      const url = `${OSRM_URL}${coordString}?sources=0&annotations=distance,duration`;
+      try {
+        const res = await fetch(url, { signal });
+        if (!res.ok) throw new Error('Routing unavailable');
+        const data = await res.json();
+        const distances = data.distances?.[0] || [];
+        const durations = data.durations?.[0] || [];
+        entities.forEach((s, idx) => {
+          const d = distances[idx + 1], tVal = durations[idx + 1];
+          s.routeDistanceKm = Number.isFinite(d) ? d / 1000 : s.lineDistanceKm;
+          s.routeDurationMin = Number.isFinite(tVal) ? tVal / 60 : (s.lineDistanceKm / 50) * 60;
+        });
+      } catch {
+        entities.forEach(s => {
+          s.routeDistanceKm = s.lineDistanceKm;
+          s.routeDurationMin = (s.lineDistanceKm / 50) * 60;
+        });
+      }
+      return entities;
+    }
+
+    function parseSchedule(schedule) {
+      const s = String(schedule || '').toUpperCase();
+      if (s.includes('24H')) return { open:true, label:t('open24') };
+      const m = s.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+      if (!m) return { open:true, label:t('open_now') };
+      const start = Number(m[1]) * 60 + Number(m[2]);
+      const end = Number(m[3]) * 60 + Number(m[4]);
+      const now = new Date(), cur = now.getHours() * 60 + now.getMinutes();
+      const open = end >= start ? (cur >= start && cur <= end) : (cur >= start || cur <= end);
+      return open ? { open:true, label:t('open_now') } : { open:false, label:`${t('closed_now')} · ${t('opens_at')} ${String(m[1]).padStart(2,'0')}:${m[2]}` };
+    }
+
+    function updateHistory(stations, fuelKey) {
+      const db = getHistory(), now = Date.now();
+      stations.forEach(s => {
+        const record = db.stations[s.id] || { meta:{ brand:s.brand, address:s.address }, snapshots:[] };
+        const last = record.snapshots[record.snapshots.length - 1];
+        if (last && now - last.t < 4 * 60 * 60 * 1000) return;
+        record.meta = { brand:s.brand, address:s.address };
+        record.snapshots.push({ t: now, fuelKey, diesel: s.raw ? parseSpanishNumber(s.raw['Precio Gasoleo A']) : NaN, gas95: s.raw ? parseSpanishNumber(s.raw['Precio Gasolina 95 E5']) : NaN });
+        record.snapshots = record.snapshots.slice(-140);
+        db.stations[s.id] = record;
+      });
+      saveHistory(db);
+    }
+
+    function getCheapestWeekday(station, fuelKey) {
+      const db = getHistory(), rec = db.stations[station.id];
+      if (!rec || !rec.snapshots || rec.snapshots.length < 3) return null;
+      const buckets = Array.from({ length:7 }, () => ({ sum:0, count:0 }));
+      rec.snapshots.forEach(s => {
+        const value = fuelKey === 'Precio Gasoleo A' ? s.diesel : s.gas95;
+        if (!Number.isFinite(value)) return;
+        const day = new Date(s.t).getDay();
+        buckets[day].sum += value; buckets[day].count += 1;
+      });
+      let best = null;
+      buckets.forEach((b, idx) => {
+        if (!b.count) return;
+        const avg = b.sum / b.count;
+        if (!best || avg < best.avg) best = { idx, avg, count:b.count };
+      });
+      return best && best.count >= 2 ? best : null;
+    }
+
+    function parseUsageCostValue(value) {
+      const txt = String(value || '').replace(',', '.');
+      const m = txt.match(/(\d+(?:\.\d+)?)/);
+      return m ? Number(m[1]) : NaN;
+    }
+
+    function isFreeUsageCost(value) {
+      const txt = String(value || '').trim().toLowerCase();
+      if (!txt) return false;
+      return txt.includes('free') || txt.includes('gratis') || txt.includes('gratuit');
+    }
+
+    function formatElectricTopValue(entity) {
+      if (!entity) return '—';
+      if (isFreeUsageCost(entity.usageCost)) return 'FREE';
+      return entity.powerText || '⚡';
+    }
+
+    function formatElectricPriceValue(entity) {
+      if (!entity) return '—';
+      if (isFreeUsageCost(entity.usageCost)) return 'FREE';
+      return entity.usageCost || t('ev_no_price');
+    }
+
+    async function fetchEvPointsReal({ center = origin, distanceKm = settings.radius, maxResults = Math.max(20, settings.maxResults * 2), signal } = {}) {
+      if (!center) return [];
+      const params = new URLSearchParams({
+        key: OCM_API_KEY, output: 'json', countrycode: 'ES',
+        latitude: String(center.latitude), longitude: String(center.longitude),
+        distance: String(distanceKm), distanceunit: 'KM',
+        maxresults: String(maxResults),
+        compact: 'true', verbose: 'false'
+      });
+      const res = await fetch(`${OCM_URL}?${params.toString()}`, { signal });
+      if (!res.ok) throw new Error('EV source unavailable');
+      const data = await res.json();
+      if (!Array.isArray(data)) return [];
+      return data.map(item => {
+        const addr = item.AddressInfo || {};
+        const conns = Array.isArray(item.Connections) ? item.Connections : [];
+        const maxPower = conns.reduce((m,c) => Math.max(m, Number(c.PowerKW) || 0), 0);
+        const connectors = conns.map(c => c.ConnectionType?.Title).filter(Boolean);
+        const lat = Number(addr.Latitude), lon = Number(addr.Longitude);
+        const lineDistanceKm = haversineKm(center.latitude, center.longitude, lat, lon);
+        const usageCost = item.UsageCost || t('ev_no_price');
+        return {
+          id:`ev_${item.ID}`, entityType:'ev',
+          brand: addr.Title || item.OperatorInfo?.Title || t('ev_separate'),
+          address: [addr.AddressLine1, addr.Town, addr.StateOrProvince].filter(Boolean).join(', '),
+          lat, lon, operator: item.OperatorInfo?.Title || '—',
+          connectorsText: connectors.length ? [...new Set(connectors)].join(', ') : '—',
+          powerText: maxPower ? `${maxPower} kW` : '—',
+          usageCost, usageCostValue: parseUsageCostValue(usageCost),
+          statusLabel: item.StatusType?.Title || t('ev_separate'),
+          lineDistanceKm, routeDistanceKm: lineDistanceKm, routeDurationMin:(lineDistanceKm/50)*60,
+          electricInfo: { hasAny:true, label: [
+            item.OperatorInfo?.Title ? `${t('ev_operator')}: ${item.OperatorInfo.Title}` : null,
+            connectors.length ? `${t('ev_connectors')}: ${[...new Set(connectors)].join(', ')}` : null,
+            maxPower ? `${t('ev_power')}: ${maxPower} kW` : null,
+            usageCost ? `${t('ev_price')}: ${usageCost}` : null
+          ].filter(Boolean).join(' · ') || t('ev_unknown') }
+        };
+      }).filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon));
+    }
+
+
+    async function fetchEvPointDetails(entity, signal) {
+      if (!entity || entity.entityType !== 'ev' || !entity.id) return null;
+      const ocmId = String(entity.id).replace(/^ev_/, '');
+      const params = new URLSearchParams({
+        key: OCM_API_KEY,
+        output: 'json',
+        chargepointid: ocmId,
+        compact: 'false',
+        verbose: 'true'
+      });
+      const res = await fetch(`${OCM_URL}?${params.toString()}`, { signal });
+      if (!res.ok) throw new Error('EV detail unavailable');
+      const data = await res.json();
+      if (!Array.isArray(data) || !data.length) return null;
+      return data[0];
+    }
+
+
+    async function findNearbyEvForFossil(entity, signal) {
+      if (!entity || entity.entityType !== 'fossil') return null;
+      const params = new URLSearchParams({
+        key: OCM_API_KEY,
+        output: 'json',
+        countrycode: 'ES',
+        latitude: String(entity.lat),
+        longitude: String(entity.lon),
+        distance: '0.08',
+        distanceunit: 'KM',
+        maxresults: '5',
+        compact: 'true',
+        verbose: 'false'
+      });
+      const res = await fetch(`${OCM_URL}?${params.toString()}`, { signal });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!Array.isArray(data) || !data.length) return null;
+
+      const candidates = data.map(item => {
+        const addr = item.AddressInfo || {};
+        const conns = Array.isArray(item.Connections) ? item.Connections : [];
+        const maxPower = conns.reduce((m,c) => Math.max(m, Number(c.PowerKW) || 0), 0);
+        const connectors = conns.map(c => c.ConnectionType?.Title).filter(Boolean);
+        const lat = Number(addr.Latitude), lon = Number(addr.Longitude);
+        const distKm = haversineKm(entity.lat, entity.lon, lat, lon);
+        return {
+          id:`ev_${item.ID}`,
+          entityType:'ev',
+          brand: addr.Title || item.OperatorInfo?.Title || t('ev_separate'),
+          address:[addr.AddressLine1, addr.Town, addr.StateOrProvince].filter(Boolean).join(', '),
+          lat, lon,
+          operator:item.OperatorInfo?.Title || '—',
+          connectorsText: connectors.length ? [...new Set(connectors)].join(', ') : '—',
+          powerText: maxPower ? `${maxPower} kW` : '—',
+          usageCost: item.UsageCost || t('ev_no_price'),
+          usageCostValue: parseUsageCostValue(item.UsageCost || ''),
+          statusLabel: item.StatusType?.Title || t('ev_separate'),
+          lineDistanceKm: distKm, routeDistanceKm: distKm, routeDurationMin:(distKm/50)*60,
+          electricInfo: { hasAny:true, label: [
+            item.OperatorInfo?.Title ? `${t('ev_operator')}: ${item.OperatorInfo.Title}` : null,
+            connectors.length ? `${t('ev_connectors')}: ${[...new Set(connectors)].join(', ')}` : null,
+            maxPower ? `${t('ev_power')}: ${maxPower} kW` : null,
+            item.UsageCost ? `${t('ev_price')}: ${item.UsageCost}` : null
+          ].filter(Boolean).join(' · ') || t('ev_unknown') }
+        };
+      }).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lon))
+        .sort((a,b) => a.lineDistanceKm - b.lineDistanceKm);
+
+      return candidates.length && candidates[0].lineDistanceKm <= 0.08 ? candidates[0] : null;
+    }
+
+    function formatEvDetailBlocks(detail) {
+      const addr = detail?.AddressInfo || {};
+      const conns = Array.isArray(detail?.Connections) ? detail.Connections : [];
+      const media = Array.isArray(detail?.MediaItems) ? detail.MediaItems : [];
+      const joinEscaped = (lines) => lines.map(x => escapeHtml(x)).join('<br>');
+      const toSafeLinkOrText = (value) => {
+        const safeUrl = safeHttpUrl(value);
+        if (safeUrl) return `<a class="modal-link" href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(safeUrl)}</a>`;
+        return escapeHtml(value);
+      };
+      const locationLines = [
+        addr.Title,
+        addr.AddressLine1,
+        addr.Town,
+        addr.StateOrProvince,
+        addr.Postcode,
+        addr.Country?.Title,
+        (Number.isFinite(addr.Latitude) && Number.isFinite(addr.Longitude)) ? `Lat/Long: ${addr.Latitude}, ${addr.Longitude}` : null
+      ].filter(Boolean);
+
+      const equipmentLines = [];
+      if (detail?.NumberOfPoints) equipmentLines.push(`Number of stations/bays: ${detail.NumberOfPoints}`);
+      const equipmentItems = conns.map(c => {
+        const parts = [];
+        if (c.Quantity) parts.push(`${c.Quantity} x`);
+        if (c.StatusType?.Title) parts.push(c.StatusType.Title);
+        if (c.ConnectionType?.Title) parts.push(c.ConnectionType.Title);
+        if (c.PowerKW) parts.push(`${c.PowerKW} kW`);
+        if (c.CurrentType?.Title) parts.push(c.CurrentType.Title);
+        return parts.join(' · ');
+      }).filter(Boolean);
+
+      const restrictionLines = [
+        detail?.StatusType?.Title ? `Operational status: ${detail.StatusType.Title}` : null,
+        detail?.UsageType?.Title ? `Usage: ${detail.UsageType.Title}` : null,
+        detail?.UsageCost ? `Usage cost: ${detail.UsageCost}` : null
+      ].filter(Boolean);
+
+      const operatorLines = [
+        detail?.OperatorInfo?.Title || null,
+        detail?.OperatorInfo?.WebsiteURL || null
+      ].filter(Boolean);
+
+      const additionalLines = [
+        detail?.DataProvider?.Title || null,
+        detail?.DataProvider?.WebsiteURL || null,
+        'Open Charge Map / CC BY 4.0'
+      ].filter(Boolean);
+
+      return {
+        locationHtml: joinEscaped(locationLines),
+        equipmentHtml: (
+          (equipmentLines.length ? `<div>${joinEscaped(equipmentLines)}</div>` : '') +
+          (equipmentItems.length ? `<div class="modal-mini-list">${equipmentItems.map(x => `<div class="modal-mini-item">${escapeHtml(x)}</div>`).join('')}</div>` : '')
+        ),
+        restrictionsHtml: joinEscaped(restrictionLines),
+        operatorHtml: operatorLines.map(toSafeLinkOrText).join('<br>'),
+        additionalHtml: additionalLines.map(toSafeLinkOrText).join('<br>'),
+        photosHtml: media.length ? media.slice(0,4).map(m => {
+          const url = safeHttpUrl(m.ItemURL || m.ItemThumbnailURL);
+          if (!url) return '';
+          const safe = escapeHtml(url);
+          return `<a href="${safe}" target="_blank" rel="noopener noreferrer"><img class="modal-photo" src="${safe}" alt="EV photo"></a>`;
+        }).join('') : ''
+      };
+    }
+
+    function resetEvDetailSections() {
+      modalEvDetailsBox.style.display = 'none';
+      modalEvEquipmentBox.style.display = 'none';
+      modalEvRestrictionsBox.style.display = 'none';
+      modalEvOperatorBox.style.display = 'none';
+      modalEvAdditionalBox.style.display = 'none';
+      modalEvPhotosBox.style.display = 'none';
+      modalEvLocation.innerHTML = '—';
+      modalEvEquipment.innerHTML = '—';
+      modalEvRestrictions.innerHTML = '—';
+      modalEvOperator.innerHTML = '—';
+      modalEvAdditional.innerHTML = '—';
+      modalEvPhotos.innerHTML = '—';
+    }
+
+    function mergeEvIntoStations(stations, evPoints) {
+      const remaining = [];
+      evPoints.forEach(ev => {
+        const match = stations.find(st => haversineKm(st.lat, st.lon, ev.lat, ev.lon) <= 0.10);
+        if (match) {
+          match.evMatch = ev;
+          match.electricInfo = { hasAny:true, label: ev.electricInfo?.label || t('ev_yes') };
+        } else {
+          remaining.push(ev);
+        }
+      });
+      stations.forEach(st => {
+        if (!st.evMatch && (!st.electricInfo || !st.electricInfo.hasAny)) st.electricInfo = { hasAny:false, label:t('ev_no') };
+      });
+      return remaining;
+    }
+
+    function getEntityTitle(entity) { return entity.brand || entity.title || entity.address || '—'; }
+    function getEntityAddress(entity) { return entity.address || '—'; }
+    function getEntityStatus(entity) { return entity.entityType === 'ev' ? (entity.statusLabel || t('ev_separate')) : parseSchedule(entity.schedule).label; }
+    function getEntityGoogleMapsUrl(entity) { return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(entity.lat + ',' + entity.lon)}`; }
+    function decodeSaleType(value) {
+      const v = String(value || '').trim().toUpperCase();
+      if (v === 'P') return t('sale_public');
+      if (v === 'R') return t('sale_restricted');
+      return value || '—';
+    }
+
+    function getEntityPriceList(entity) {
+      if (entity.entityType === 'ev') {
+        return [
+          `${t('ev_operator')}: ${entity.operator || '—'}`,
+          `${t('ev_connectors')}: ${entity.connectorsText || '—'}`,
+          `${t('ev_power')}: ${entity.powerText || '—'}`,
+          `${t('ev_price')}: ${entity.usageCost || t('ev_no_price')}`
+        ];
+      }
+      const priceLines = (entity.allPrices || entity.availablePrices || []).map(p => `${p.label}: ${p.value.toFixed(3)} €/L`);
+      return [`${t('sale_type')}: ${decodeSaleType(entity.saleType)}`, ...priceLines];
+    }
+
+    function buildPopupHtml(entity) {
+      const routeUrl = getEntityGoogleMapsUrl(entity);
+      const statusText = getEntityStatus(entity);
+      const headline = entity.entityType === 'ev'
+        ? `${formatKm(entity.routeDistanceKm)} · ${formatMinutes(entity.routeDurationMin)}`
+        : `<strong>${entity.priceText}</strong> · ${formatKm(entity.routeDistanceKm)} · ${formatMinutes(entity.routeDurationMin)}`;
+      return `
+        <div class="popup">
+          <h4>${escapeHtml(getEntityTitle(entity))}</h4>
+          <div class="a">${escapeHtml(getEntityAddress(entity))}</div>
+          <div>${headline}</div>
+          <div style="margin-top:4px;color:#4e5f7f">${escapeHtml(statusText)}</div>
+          <div style="margin-top:4px;color:#4e5f7f"><strong>${t('ev_info')}:</strong> ${escapeHtml((entity.electricInfo && entity.electricInfo.label) || t('ev_no'))}</div>
+          <ul>${getEntityPriceList(entity).map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul>
+          <div class="links"><a href="${routeUrl}" target="_blank" rel="noopener noreferrer">${t('go_maps')}</a></div>
+        </div>
+      `;
+    }
+
+    function renderMarkers(stations, cheapestId, priciestId, evPoints = []) {
+      clearStationMarkers();
+      stations.forEach(s => {
+        let type = 'default';
+        if (s.id === cheapestId) type = 'green';
+        else if (s.id === priciestId) type = 'red';
+        const marker = L.marker([s.lat, s.lon], { icon:getStationIcon(type) }).addTo(map);
+        marker.on('click', () => {
+          map.closePopup();
+          openEntityModal(s);
+        });
+        s.marker = marker;
+        stationMarkers.push(marker);
+      });
+      evPoints.forEach(s => {
+        const marker = L.marker([s.lat, s.lon], { icon:getStationIcon('ev') }).addTo(map);
+        marker.on('click', () => {
+          map.closePopup();
+          openEntityModal(s);
+        });
+        s.marker = marker;
+        stationMarkers.push(marker);
+      });
+    }
+
+    function renderFossilResults(stations) {
+      if (!stations.length) {
+        resultsEl.innerHTML = `<div class="result-item"><div class="sub">${t('no_stations')}</div></div>`;
+        setBestPill(null, 'fossil');
+        return;
+      }
+      const selectedFuel = settings.fuel;
+      const cheapest = stations.reduce((a,b) => a.price <= b.price ? a : b);
+      const priciest = stations.reduce((a,b) => a.price >= b.price ? a : b);
+      const nearest = stations.reduce((a,b) => a.routeDistanceKm <= b.routeDistanceKm ? a : b);
+
+      setBestPill(cheapest, 'fossil');
+      setSecondPill(null);
+
+      bestName.textContent = cheapest.brand;
+      bestPrice.textContent = cheapest.priceText;
+      bestMeta.innerHTML = `${escapeHtml(cheapest.address)}<br>${formatKm(cheapest.routeDistanceKm)} · ${formatMinutes(cheapest.routeDurationMin)} · ${t(priceFields.find(f => f[0] === selectedFuel)?.[1] || 'diesel')}<br>${escapeHtml((cheapest.electricInfo && cheapest.electricInfo.label) || t('ev_no'))}`;
+      bestRoute.href = getEntityGoogleMapsUrl(cheapest);
+      bestFocusBtn.onclick = () => { focusEntity(cheapest); openEntityModal(cheapest); };
+
+      nearestName.textContent = nearest.brand;
+      nearestPrice.textContent = nearest.priceText;
+      nearestMeta.innerHTML = `${escapeHtml(nearest.address)}<br>${formatKm(nearest.routeDistanceKm)} · ${formatMinutes(nearest.routeDurationMin)} · ${t(priceFields.find(f => f[0] === selectedFuel)?.[1] || 'diesel')}<br>${escapeHtml((nearest.electricInfo && nearest.electricInfo.label) || t('ev_no'))}`;
+      nearestRoute.href = getEntityGoogleMapsUrl(nearest);
+      nearestFocusBtn.onclick = () => { focusEntity(nearest); openEntityModal(nearest); };
+
+      sheetPeekSub.textContent = `${stations.length} ${t('results_count')}`;
+      peekPill.textContent = `${settings.radius} km`;
+      statsText.innerHTML = `${t('best_day')}: <strong>${(getCheapestWeekday(cheapest, settings.fuel) ? weekdays[settings.lang][getCheapestWeekday(cheapest, settings.fuel).idx] : t('no_prediction'))}</strong><br>${sourceDate ? `Dataset: ${escapeHtml(sourceDate)}` : ''}`;
+
+      resultsEl.innerHTML = stations.map((s, idx) => `
+        <div class="result-item">
+          <div class="result-top">
+            <div><h4>${idx + 1}. ${escapeHtml(s.brand)}</h4></div>
+            <div class="badge-price">${s.priceText}</div>
+          </div>
+          <div class="sub">${escapeHtml(s.address)}<br>${escapeHtml(getEntityStatus(s))}<br>${escapeHtml((s.electricInfo && s.electricInfo.label) || t('ev_no'))}</div>
+          <div class="chips">
+            ${s.id === cheapest.id ? `<span class="chip">💚 ${t('legend_best')}</span>` : ''}
+            ${s.id === nearest.id ? `<span class="chip">📍 ${t('nearest_station')}</span>` : ''}
+            ${s.id === priciest.id ? `<span class="chip">❤️ ${t('legend_worst')}</span>` : ''}
+            <span class="chip">🚗 ${formatKm(s.routeDistanceKm)}</span>
+            <span class="chip">⏱️ ${formatMinutes(s.routeDurationMin)}</span>
+          </div>
+          <div class="actions">
+            <a class="action-link" href="${getEntityGoogleMapsUrl(s)}" target="_blank" rel="noopener noreferrer">${t('go_maps')}</a>
+            <button class="action-mini" onclick="focusEntityById('${String(s.id).replaceAll("'", "\\'")}')">${t('show_map')}</button>
+          </div>
+        </div>
+      `).join('');
+
+      renderMarkers(stations, cheapest.id, priciest.id, []);
+    }
+
+    function renderElectricResults(evPoints) {
+      if (!evPoints.length) {
+        resultsEl.innerHTML = `<div class="result-item"><div class="sub">${t('no_stations')}</div></div>`;
+        setBestPill(null, 'electric');
+        return;
+      }
+      const nearest = evPoints.reduce((a,b) => a.routeDistanceKm <= b.routeDistanceKm ? a : b);
+      const costCandidates = evPoints.filter(x => Number.isFinite(x.usageCostValue));
+      const cheapestUsage = costCandidates.length ? costCandidates.reduce((a,b) => a.usageCostValue <= b.usageCostValue ? a : b) : nearest;
+      currentNearestEv = nearest;
+      currentCheapestUsageEv = cheapestUsage;
+
+      setBestPill(nearest, 'electric');
+      setSecondPill(cheapestUsage);
+
+      bestName.textContent = getEntityTitle(cheapestUsage);
+      bestPrice.textContent = formatElectricPriceValue(cheapestUsage);
+      bestMeta.innerHTML = `${escapeHtml(getEntityAddress(cheapestUsage))}<br>${formatKm(cheapestUsage.routeDistanceKm)} · ${formatMinutes(cheapestUsage.routeDurationMin)}<br>${escapeHtml((cheapestUsage.electricInfo && cheapestUsage.electricInfo.label) || t('ev_unknown'))}`;
+      bestRoute.href = getEntityGoogleMapsUrl(cheapestUsage);
+      bestFocusBtn.onclick = () => { focusEntity(cheapestUsage); openEntityModal(cheapestUsage); };
+
+      nearestName.textContent = getEntityTitle(nearest);
+      nearestPrice.textContent = formatElectricTopValue(nearest);
+      nearestMeta.innerHTML = `${escapeHtml(getEntityAddress(nearest))}<br>${formatKm(nearest.routeDistanceKm)} · ${formatMinutes(nearest.routeDurationMin)}<br>${escapeHtml((nearest.electricInfo && nearest.electricInfo.label) || t('ev_unknown'))}`;
+      nearestRoute.href = getEntityGoogleMapsUrl(nearest);
+      nearestFocusBtn.onclick = () => { focusEntity(nearest); openEntityModal(nearest); };
+
+      sheetPeekSub.textContent = `${evPoints.length} ${t('results_count')}`;
+      peekPill.textContent = `${settings.radius} km`;
+      statsText.innerHTML = `${t('nearest_charge_bar')}: <strong>${escapeHtml(getEntityTitle(nearest))}</strong><br>${t('usage_cost_cheapest')}: <strong>${escapeHtml(cheapestUsage.usageCost || t('ev_no_price'))}</strong><br>${sourceDate ? `Dataset: ${escapeHtml(sourceDate)}` : ''}`;
+
+      resultsEl.innerHTML = evPoints.map((s, idx) => `
+        <div class="result-item">
+          <div class="result-top">
+            <div><h4>${idx + 1}. ${escapeHtml(getEntityTitle(s))}</h4></div>
+            <div class="badge-price">${escapeHtml(isFreeUsageCost(s.usageCost) ? 'FREE' : (s.usageCost || s.powerText || '⚡'))}</div>
+          </div>
+          <div class="sub">${escapeHtml(getEntityAddress(s))}<br>${escapeHtml(getEntityStatus(s))}<br>${escapeHtml((s.electricInfo && s.electricInfo.label) || t('ev_unknown'))}</div>
+          <div class="chips">
+            ${s.id === nearest.id ? `<span class="chip">⚡ ${t('nearest_charge')}</span>` : ''}
+            ${s.id === cheapestUsage.id ? `<span class="chip">💶 ${t('usage_cost_cheapest')}</span>` : ''}
+            <span class="chip">🚗 ${formatKm(s.routeDistanceKm)}</span>
+            <span class="chip">⏱️ ${formatMinutes(s.routeDurationMin)}</span>
+          </div>
+          <div class="actions">
+            <a class="action-link" href="${getEntityGoogleMapsUrl(s)}" target="_blank" rel="noopener noreferrer">${t('go_maps')}</a>
+            <button class="action-mini" onclick="focusEntityById('${String(s.id).replaceAll("'", "\\'")}')">${t('show_map')}</button>
+          </div>
+        </div>
+      `).join('');
+
+      renderMarkers([], null, null, evPoints);
+    }
+
+    function focusEntity(entity) {
+      if (!entity) return;
+      map.closePopup();
+      map.setView([entity.lat, entity.lon], 16);
+    }
+    function focusEntityById(id) {
+      const all = [...currentStations, ...currentEvPoints];
+      const entity = all.find(x => String(x.id) === String(id));
+      if (!entity) return;
+      focusEntity(entity);
+      openEntityModal(entity);
+    }
+    window.focusEntityById = focusEntityById;
+
+    function buildShareText(entity) {
+      const bestDay = entity.entityType === 'ev' ? null : getCheapestWeekday(entity, settings.fuel);
+      const bestDayText = bestDay ? `${t('best_day')} ${weekdays[settings.lang][bestDay.idx]} (${bestDay.count} ${t('samples')})` : t('no_prediction');
+      const status = getEntityStatus(entity);
+      const prices = getEntityPriceList(entity).join('\n');
+      const navUrl = getEntityGoogleMapsUrl(entity);
+      return `${getEntityTitle(entity)}\n${getEntityAddress(entity)}\n${t('route_label')}: ${formatKm(entity.routeDistanceKm)}\n${t('duration_label')}: ${formatMinutes(entity.routeDurationMin)}\n${t('status_label')}: ${status}\n${t('ev_info')}: ${(entity.electricInfo && entity.electricInfo.label) || t('ev_no')}\n\n${prices}\n\n${bestDayText}\n\nGoogle Maps: ${navUrl}`;
+    }
+    async function shareEntity(entity) {
+      const text = buildShareText(entity);
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: getEntityTitle(entity), text });
+        } else if (navigator.clipboard) {
+          await navigator.clipboard.writeText(text);
+          setStatus(t('copied'), 'ok');
+        }
+      } catch (e) {}
+    }
+    function closeEntityModal() {
+      modalOverlay.classList.remove('show');
+      modalOverlay.setAttribute('aria-hidden', 'true');
+      if (evDetailsAbortController) evDetailsAbortController.abort();
+      if (evNearbyAbortController) evNearbyAbortController.abort();
+      evDetailsAbortController = null;
+      evNearbyAbortController = null;
+    }
+
+    function openEntityModal(entity) {
+      if (!entity) return;
+      const bestDay = entity.entityType === 'ev' ? null : getCheapestWeekday(entity, settings.fuel);
+      modalKicker.textContent = entity.entityType === 'ev' ? t('ev_separate') : t('station_detail');
+      modalTitle.textContent = getEntityTitle(entity);
+      modalAddress.textContent = getEntityAddress(entity);
+      modalDistance.textContent = formatKm(entity.routeDistanceKm);
+      modalDuration.textContent = formatMinutes(entity.routeDurationMin);
+      modalStatus.textContent = getEntityStatus(entity);
+      modalExtraLabel.textContent = entity.entityType === 'ev' ? t('ev_price') : t('best_day_label');
+      modalBestDay.textContent = entity.entityType === 'ev' ? (isFreeUsageCost(entity.usageCost) ? 'FREE' : (entity.usageCost || t('ev_no_price'))) : (bestDay ? `${weekdays[settings.lang][bestDay.idx]} · ${bestDay.count} ${t('samples')}` : t('no_prediction'));
+      modalPricesTitle.textContent = entity.entityType === 'ev' ? t('all_prices') : t('all_fuel_prices');
+      modalPrices.innerHTML = getEntityPriceList(entity).map(x => `<li>${escapeHtml(x)}</li>`).join('');
+      modalEvInfo.textContent = (entity.electricInfo && entity.electricInfo.label) || t('ev_no');
+      modalNavigateBtn.href = getEntityGoogleMapsUrl(entity);
+      modalShareBtn.onclick = () => shareEntity(entity);
+      modalCloseBtn.onclick = closeEntityModal;
+      modalCloseActionBtn.onclick = closeEntityModal;
+      modalOverlay.onclick = (e) => { if (e.target === modalOverlay) closeEntityModal(); };
+      if (evDetailsAbortController) evDetailsAbortController.abort();
+      if (evNearbyAbortController) evNearbyAbortController.abort();
+      evDetailsAbortController = null;
+      evNearbyAbortController = null;
+
+      resetEvDetailSections();
+      if (entity.entityType === 'ev') {
+        modalEvDetailsBox.style.display = 'block';
+        modalEvLocation.textContent = t('loading_details');
+        evDetailsAbortController = new AbortController();
+        fetchEvPointDetails(entity, evDetailsAbortController.signal).then(detail => {
+          if (!detail || !modalOverlay.classList.contains('show')) return;
+          const blocks = formatEvDetailBlocks(detail);
+          if (blocks.locationHtml) {
+            modalEvDetailsBox.style.display = 'block';
+            modalEvLocation.innerHTML = blocks.locationHtml;
+          }
+          if (blocks.equipmentHtml) {
+            modalEvEquipmentBox.style.display = 'block';
+            modalEvEquipment.innerHTML = blocks.equipmentHtml;
+          }
+          if (blocks.restrictionsHtml) {
+            modalEvRestrictionsBox.style.display = 'block';
+            modalEvRestrictions.innerHTML = blocks.restrictionsHtml;
+          }
+          if (blocks.operatorHtml) {
+            modalEvOperatorBox.style.display = 'block';
+            modalEvOperator.innerHTML = blocks.operatorHtml;
+          }
+          if (blocks.additionalHtml) {
+            modalEvAdditionalBox.style.display = 'block';
+            modalEvAdditional.innerHTML = blocks.additionalHtml;
+          }
+          if (blocks.photosHtml) {
+            modalEvPhotosBox.style.display = 'block';
+            modalEvPhotos.innerHTML = blocks.photosHtml;
+          }
+        }).catch((error) => {
+          if (isAbortError(error)) return;
+          if (!modalOverlay.classList.contains('show')) return;
+          modalEvLocation.textContent = '—';
+        });
+      } else {
+        modalEvInfo.textContent = t('searching_ev');
+        evNearbyAbortController = new AbortController();
+        findNearbyEvForFossil(entity, evNearbyAbortController.signal).then(ev => {
+          if (!modalOverlay.classList.contains('show')) return;
+          if (!ev) {
+            modalEvInfo.textContent = t('ev_no');
+            return;
+          }
+          modalEvInfo.textContent = ev.electricInfo?.label || t('ev_yes');
+        }).catch((error) => {
+          if (isAbortError(error)) return;
+          if (!modalOverlay.classList.contains('show')) return;
+          modalEvInfo.textContent = t('ev_no');
+        });
+      }
+
+      modalOverlay.classList.add('show');
+      modalOverlay.setAttribute('aria-hidden', 'false');
+    }
+
+    async function fetchElectricWithinRadius(radiusKm, maxResults, signal) {
+      let evPoints = await fetchEvPointsReal({ distanceKm: radiusKm, maxResults: Math.max(maxResults * 2, 20), signal });
+      evPoints = await enrichWithDrivingDistances(evPoints, signal);
+      return evPoints
+        .filter(ev => Number.isFinite(ev.routeDistanceKm) ? ev.routeDistanceKm <= radiusKm : true)
+        .sort((a,b) => a.routeDistanceKm - b.routeDistanceKm)
+        .slice(0, maxResults);
+    }
+    async function fetchFossilWithinRadius(radiusKm, maxResults, selectedFuel, signal) {
+      if (!cachedStations.length) cachedStations = await fetchStations(signal);
+      let stations = cachedStations
+        .map(raw => normalizeStation(raw, selectedFuel, origin.latitude, origin.longitude))
+        .filter(Boolean)
+        .filter(s => s.lineDistanceKm <= radiusKm * 1.6)
+        .sort((a,b) => a.lineDistanceKm - b.lineDistanceKm)
+        .slice(0, Math.max(maxResults * 3, 30));
+      stations = await enrichWithDrivingDistances(stations, signal);
+      stations = stations
+        .filter(s => Number.isFinite(s.routeDistanceKm) ? s.routeDistanceKm <= radiusKm : true)
+        .sort((a,b) => a.price !== b.price ? a.price - b.price : a.routeDistanceKm - b.routeDistanceKm)
+        .slice(0, maxResults);
+
+      let evPoints = [];
+      try {
+        evPoints = await fetchEvPointsReal({ distanceKm: radiusKm, maxResults: Math.max(maxResults * 2, 20), signal });
+        evPoints = await enrichWithDrivingDistances(evPoints, signal);
+        evPoints = evPoints.filter(ev => Number.isFinite(ev.routeDistanceKm) ? ev.routeDistanceKm <= radiusKm : true);
+      } catch {
+        evPoints = [];
+      }
+      return { stations, evPoints };
+    }
+    function mergeLatestIntoStaticCache(stations = [], evPoints = []) {
+      if (!origin) return;
+      const baseCenter = { latitude: origin.latitude, longitude: origin.longitude };
+      pruneCachesAroundCenter(baseCenter, STATIC_AREA_RADIUS_KM, { updateCenter: true });
+      const stationMap = new Map((Array.isArray(staticAreaCache?.stations) ? staticAreaCache.stations : []).map(x => [x.id, x]));
+      const evMap = new Map((Array.isArray(staticAreaCache?.evPoints) ? staticAreaCache.evPoints : []).map(x => [x.id, x]));
+
+      stations.forEach(st => {
+        if (!st || !Number.isFinite(st.lat) || !Number.isFinite(st.lon)) return;
+        if (haversineKm(baseCenter.latitude, baseCenter.longitude, st.lat, st.lon) > STATIC_AREA_RADIUS_KM) return;
+        const previous = stationMap.get(st.id) || {};
+        const mergedFuels = Object.assign({}, previous.fuels && typeof previous.fuels === 'object' ? previous.fuels : {});
+        if (st.raw) Object.assign(mergedFuels, extractStaticFuelMap(st.raw));
+        if (Number.isFinite(st.price) && settings.mode !== 'electric') mergedFuels[settings.fuel] = Number(st.price);
+        stationMap.set(st.id, {
+          id: st.id,
+          brand: st.brand || 'Sin marca',
+          address: st.address || '',
+          schedule: st.schedule || '24H',
+          municipality: st.municipality || '',
+          province: st.province || '',
+          lat: st.lat,
+          lon: st.lon,
+          saleType: st.saleType || '-',
+          electricInfo: st.electricInfo || { hasAny:false, label:t('ev_no') },
+          fuels: mergedFuels
+        });
+      });
+      evPoints.forEach(ev => {
+        if (!ev || !Number.isFinite(ev.lat) || !Number.isFinite(ev.lon)) return;
+        if (haversineKm(baseCenter.latitude, baseCenter.longitude, ev.lat, ev.lon) > STATIC_AREA_RADIUS_KM) return;
+        evMap.set(ev.id, buildStaticEvRecord(ev));
+      });
+      saveStaticAreaCache({
+        center: baseCenter,
+        updatedAt: Date.now(),
+        stations: Array.from(stationMap.values()),
+        evPoints: Array.from(evMap.values()).filter(Boolean)
+      });
+      pruneCachesAroundCenter(baseCenter, STATIC_AREA_RADIUS_KM, { updateCenter: true });
+    }
+    function applyElectricResults(evPoints, radiusKm, options = {}) {
+      currentStations = [];
+      currentEvPoints = evPoints;
+      updateVolatileEvPrices(evPoints);
+      mergeLatestIntoStaticCache([], evPoints);
+      renderElectricResults(evPoints);
+      const cacheKey = buildSessionCacheKey('electric', radiusKm, '-');
+      writeSessionCache(cacheKey, { evPoints: evPoints.map(x => ({ ...x, marker: undefined })) });
+      translateUi();
+      if (options.silentStatus) return;
+      if (evPoints.length) {
+        const nearest = evPoints[0];
+        setStatus(`${t('nearest_charge_bar')}: <strong>${escapeHtml(getEntityTitle(nearest))}</strong> - <strong>${formatKm(nearest.routeDistanceKm)}</strong>`, 'ok');
+      } else {
+        setStatus(t('no_stations'), 'warn');
+      }
+    }
+    function applyFossilResults(stations, evPoints, selectedFuel, radiusKm, options = {}) {
+      currentEvPoints = mergeEvIntoStations(stations, evPoints);
+      currentStations = stations;
+      if (!options.skipHistory) updateHistory(stations, selectedFuel);
+      updateVolatileStationPrices(stations, selectedFuel);
+      updateVolatileEvPrices(currentEvPoints);
+      mergeLatestIntoStaticCache(stations, currentEvPoints);
+      renderFossilResults(stations);
+      const cacheKey = buildSessionCacheKey('fossil', radiusKm, selectedFuel);
+      writeSessionCache(cacheKey, {
+        stations: stations.map(x => ({ ...x, marker: undefined })),
+        evPoints: currentEvPoints.map(x => ({ ...x, marker: undefined }))
+      });
+      translateUi();
+      if (options.silentStatus) return;
+      if (stations.length) {
+        const cheapest = stations[0];
+        setStatus(`${t('cheapest_msg')} <strong>${cheapest.priceText}</strong> ${t('and_is')} <strong>${formatKm(cheapest.routeDistanceKm)}</strong> ${t('from_origin')}`, 'ok');
+      } else {
+        setStatus(t('no_stations'), 'warn');
+      }
+    }
+    async function tryExpandedRadiusSearch(mode, baseRadius, maxResults, selectedFuel, signal, requestId) {
+      for (const radius of buildExpandedRadiusSteps(baseRadius)) {
+        if (isLoadRequestStale(requestId) || signal.aborted) return null;
+        setStatus(tp('expand_radius_progress', { radius }), 'warn');
+        if (mode === 'electric') {
+          const evPoints = await fetchElectricWithinRadius(radius, maxResults, signal);
+          if (evPoints.length) return { radius, evPoints };
+        } else {
+          const data = await fetchFossilWithinRadius(radius, maxResults, selectedFuel, signal);
+          if (data.stations.length) return { radius, ...data };
+        }
+      }
+      return null;
+    }
+    async function loadNearbyEntities(showLoading = true, options = {}) {
+      const opts = Object.assign({ allowNoDataExpansion: true, silentStatus: false, radiusKm: null, maxResults: null, smooth: false }, options || {});
+      if (opts.smooth) smoothRefreshStart();
+      const { requestId, signal } = beginLoadRequest();
+      try {
+        if (!origin) return;
+        if (showLoading && !opts.silentStatus) setStatus(`<span class="loading"></span>${t('loading')}`, 'warn');
+
+        const radiusKm = Number.isFinite(opts.radiusKm) ? Number(opts.radiusKm) : settings.radius;
+        const maxResults = Number.isFinite(opts.maxResults) ? Number(opts.maxResults) : settings.maxResults;
+        const selectedFuel = settings.fuel;
+        ensureStaticAreaCache(signal).catch(() => {});
+
+        const cacheKey = buildSessionCacheKey(settings.mode, radiusKm, settings.mode === 'electric' ? '-' : selectedFuel);
+        const quickCache = readSessionCache(cacheKey);
+        if (quickCache) {
+          if (settings.mode === 'electric' && Array.isArray(quickCache.evPoints)) {
+            applyElectricResults(quickCache.evPoints.map(x => ({ ...x })), radiusKm, { silentStatus: true });
+          }
+          if (settings.mode === 'fossil' && Array.isArray(quickCache.stations)) {
+            applyFossilResults(quickCache.stations.map(x => ({ ...x })), (quickCache.evPoints || []).map(x => ({ ...x })), selectedFuel, radiusKm, { silentStatus: true, skipHistory: true });
+          }
+        } else if (settings.mode === 'electric') {
+          const warmEv = buildFallbackEvFromCache(radiusKm, maxResults);
+          if (warmEv.length) applyElectricResults(warmEv, radiusKm, { silentStatus: true });
+        } else {
+          const warmStations = buildFallbackStationsFromCache(selectedFuel, radiusKm, maxResults);
+          if (warmStations.length) {
+            const warmEv = buildFallbackEvFromCache(radiusKm, Math.max(maxResults * 2, 20));
+            applyFossilResults(warmStations, warmEv, selectedFuel, radiusKm, { silentStatus: true, skipHistory: true });
+          }
+        }
+
+        if (settings.mode === 'electric') {
+          const evPoints = await fetchElectricWithinRadius(radiusKm, maxResults, signal);
+          if (isLoadRequestStale(requestId)) return;
+          applyElectricResults(evPoints, radiusKm, { silentStatus: opts.silentStatus });
+          if (!evPoints.length && opts.allowNoDataExpansion) {
+            const confirmed = await askToExpandRadius(radiusKm);
+            if (!confirmed || isLoadRequestStale(requestId)) return;
+            const expanded = await tryExpandedRadiusSearch('electric', radiusKm, maxResults, selectedFuel, signal, requestId);
+            if (expanded && expanded.evPoints?.length) {
+              settings.radius = clampNumber(expanded.radius, 1, settings.radius, 120);
+              radiusKmEl.value = settings.radius;
+              saveSettings();
+              applyElectricResults(expanded.evPoints, settings.radius, { silentStatus: true });
+              setStatus(tp('expand_radius_done', { radius: settings.radius }), 'ok');
+            }
+          }
+          return;
+        }
+
+        const data = await fetchFossilWithinRadius(radiusKm, maxResults, selectedFuel, signal);
+        if (isLoadRequestStale(requestId)) return;
+        applyFossilResults(data.stations, data.evPoints, selectedFuel, radiusKm, { silentStatus: opts.silentStatus });
+        if (!data.stations.length && opts.allowNoDataExpansion) {
+          const confirmed = await askToExpandRadius(radiusKm);
+          if (!confirmed || isLoadRequestStale(requestId)) return;
+          const expanded = await tryExpandedRadiusSearch('fossil', radiusKm, maxResults, selectedFuel, signal, requestId);
+          if (expanded && expanded.stations?.length) {
+            settings.radius = clampNumber(expanded.radius, 1, settings.radius, 120);
+            radiusKmEl.value = settings.radius;
+            saveSettings();
+            applyFossilResults(expanded.stations, expanded.evPoints || [], selectedFuel, settings.radius, { silentStatus: true });
+            setStatus(tp('expand_radius_done', { radius: settings.radius }), 'ok');
+          }
+        }
+      } catch (error) {
+        if (isAbortError(error) || isLoadRequestStale(requestId)) return;
+        console.error(error);
+        const radiusKm = Number.isFinite(opts.radiusKm) ? Number(opts.radiusKm) : settings.radius;
+        const maxResults = Number.isFinite(opts.maxResults) ? Number(opts.maxResults) : settings.maxResults;
+        if (settings.mode === 'electric') {
+          const fallbackEv = buildFallbackEvFromCache(radiusKm, maxResults);
+          if (fallbackEv.length) {
+            applyElectricResults(fallbackEv, radiusKm, { silentStatus: true });
+            if (!opts.silentStatus) setStatus(t('fallback_cached'), 'warn');
+            return;
+          }
+        } else {
+          const fallbackStations = buildFallbackStationsFromCache(settings.fuel, radiusKm, maxResults);
+          if (fallbackStations.length) {
+            const fallbackEv = buildFallbackEvFromCache(radiusKm, Math.max(maxResults * 2, 20));
+            applyFossilResults(fallbackStations, fallbackEv, settings.fuel, radiusKm, { silentStatus: true, skipHistory: true });
+            if (!opts.silentStatus) setStatus(t('fallback_cached'), 'warn');
+            return;
+          }
+        }
+        if (!opts.silentStatus) setStatus(error.message || 'Error', 'err');
+      } finally {
+        if (opts.smooth) smoothRefreshEnd();
+      }
+    }
+
+    async function searchAddress() {
+
+      try {
+        setStatus(`<span class="loading"></span>${t('loading')}`, 'warn');
+        const controller = new AbortController();
+        const result = await geocodeAddress(addressInput.value.trim(), controller.signal);
+        origin = { latitude: Number(result.lat), longitude: Number(result.lon), label: result.display_name };
+        homeOrigin = { ...origin };
+        persistCurrentOrigin();
+        pruneCachesAroundCenter(origin, STATIC_AREA_RADIUS_KM, { updateCenter: true });
+        map.setView([origin.latitude, origin.longitude], 14);
+        setSheetOpen(false);
+        ensureStaticAreaCache().catch(() => {});
+        setStatus(`${t('location_found')}: <strong>${escapeHtml(result.display_name)}</strong>`, 'ok');
+        loadNearbyEntities(false, { smooth: true });
+      } catch (e) {
+        setStatus(t('address_error'), 'err');
+      }
+    }
+
+    function updateConfigButtonIcon() {
+      const isOpen = sheet.classList.contains('open');
+      toggleSheetBtn.textContent = isOpen ? '✕' : '⚙';
+      toggleSheetBtn.setAttribute('aria-label', isOpen ? 'Cerrar configuración' : 'Abrir configuración');
+      toggleSheetBtn.setAttribute('aria-expanded', String(isOpen));
+    }
+
+    function toggleSheet() {
+      setSheetOpen(!sheet.classList.contains('open'));
+    }
+
+    async function refreshForegroundLocation() {
+      if (document.hidden || locationRefreshInFlight) return;
+      locationRefreshInFlight = true;
+      try {
+        const permissionState = await getGeolocationPermissionState();
+        if (permissionState === 'granted') {
+          const coords = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(
+              pos => resolve(pos.coords),
+              err => reject(err || new Error(t('geo_error'))),
+              { enableHighAccuracy:false, timeout:10000, maximumAge:30000 }
+            );
+          });
+          if (coords && Number.isFinite(coords.latitude) && Number.isFinite(coords.longitude)) {
+            origin = { latitude: coords.latitude, longitude: coords.longitude, label: `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}` };
+            if (!homeOrigin) homeOrigin = { ...origin };
+            persistCurrentOrigin();
+            pruneCachesAroundCenter(origin, STATIC_AREA_RADIUS_KM, { updateCenter: true });
+          }
+        }
+        if (origin) {
+          await loadNearbyEntities(false, { allowNoDataExpansion: false, silentStatus: true });
+        }
+      } catch {}
+      finally {
+        locationRefreshInFlight = false;
+      }
+    }
+    function msUntilNextHour() {
+      const now = new Date();
+      const next = new Date(now);
+      next.setHours(now.getHours() + 1, 0, 0, 0);
+      return Math.max(1000, next.getTime() - now.getTime());
+    }
+    async function refreshBackgroundPrices() {
+      if (!document.hidden || !origin) return;
+      try {
+        const selectedFuel = settings.fuel;
+        const radiusKm = settings.radius;
+        const maxResults = settings.maxResults;
+        const stationsData = await fetchFossilWithinRadius(radiusKm, Math.max(maxResults, 20), selectedFuel, new AbortController().signal);
+        updateVolatileStationPrices(stationsData.stations, selectedFuel);
+        const evPoints = await fetchElectricWithinRadius(Math.max(radiusKm, 8), Math.max(maxResults, 20), new AbortController().signal);
+        updateVolatileEvPrices(evPoints);
+        mergeLatestIntoStaticCache(stationsData.stations, evPoints);
+        localStorage.setItem(BACKGROUND_PRICE_REFRESH_KEY, String(Date.now()));
+      } catch {}
+    }
+    function startBackgroundRefresh() {
+      if (backgroundRefreshTimer) return;
+      const run = async () => {
+        backgroundRefreshTimer = null;
+        await refreshBackgroundPrices();
+        startBackgroundRefresh();
+      };
+      backgroundRefreshTimer = setTimeout(run, msUntilNextHour());
+    }
+    function stopBackgroundRefresh() {
+      if (!backgroundRefreshTimer) return;
+      clearTimeout(backgroundRefreshTimer);
+      backgroundRefreshTimer = null;
+    }
+    function startForegroundLocationRefresh() {
+      if (locationRefreshTimer) return;
+      locationRefreshTimer = setInterval(() => { refreshForegroundLocation(); }, LOCATION_REFRESH_INTERVAL_MS);
+      refreshForegroundLocation();
+    }
+    function stopForegroundLocationRefresh() {
+      if (!locationRefreshTimer) return;
+      clearInterval(locationRefreshTimer);
+      locationRefreshTimer = null;
+    }
+
+    let currentNearestEv = null;
+    let currentCheapestUsageEv = null;
+
+    bestPill.addEventListener('click', () => {
+      if (settings.mode === 'electric' && currentNearestEv) openEntityModal(currentNearestEv);
+      else if (currentStations.length) openEntityModal(currentStations[0]);
+    });
+    secondPill.addEventListener('click', () => {
+      if (settings.mode === 'electric' && currentCheapestUsageEv) openEntityModal(currentCheapestUsageEv);
+    });
+    toggleSheetBtn.addEventListener('click', toggleSheet);
+    sheetPeek.addEventListener('click', toggleSheet);
+    helpBtn.addEventListener('click', () => {
+      const isOpen = legendPop.classList.toggle('show');
+      helpBtn.setAttribute('aria-expanded', String(isOpen));
+    });
+    recenterBtn.addEventListener('click', async () => {
+      try {
+        await requestPreciseLocation({ closeSheet: false, showPromptOnFail: true });
+        loadNearbyEntities(false, { smooth: true });
+      } catch (e) {
+        if (isGeolocationContextAllowed()) showGeolocationPromptStatus('warn');
+      }
+    });
+    resultsBtn.addEventListener('click', openResultsModal);
+    locateBtn.addEventListener('click', async () => {
+      try {
+        await requestPreciseLocation({ closeSheet: true, showPromptOnFail: true });
+        loadNearbyEntities(false, { smooth: true });
+      } catch (e) {
+        if (isGeolocationContextAllowed()) showGeolocationPromptStatus('err');
+      }
+    });
+    searchAddressBtn.addEventListener('click', searchAddress);
+    addressInput.addEventListener('keydown', e => { if (e.key === 'Enter') searchAddress(); });
+    fuelTypeEl.addEventListener('change', () => { settings.fuel = fuelTypeEl.value; saveSettings(); loadNearbyEntities(false, { smooth: true }); });
+    radiusKmEl.addEventListener('change', () => { settings.radius = clampNumber(radiusKmEl.value, 1, 7, 120); radiusKmEl.value = settings.radius; saveSettings(); loadNearbyEntities(false, { smooth: true }); });
+    maxResultsEl.addEventListener('change', () => { settings.maxResults = clampNumber(maxResultsEl.value, 5, 18, 40); maxResultsEl.value = settings.maxResults; saveSettings(); loadNearbyEntities(); });
+    languageSelect.addEventListener('change', () => { settings.lang = languageSelect.value; saveSettings(); translateUi(); loadNearbyEntities(false, { allowNoDataExpansion: false, silentStatus: true }); });
+    themeSelect.addEventListener('change', () => { settings.themeMode = normalizeThemeMode(themeSelect.value); saveSettings(); applyThemeMode(); loadNearbyEntities(false, { allowNoDataExpansion: false, silentStatus: true, smooth: true }); });
+    modeFossilBtn.addEventListener('click', () => { settings.mode = 'fossil'; saveSettings(); translateUi(); loadNearbyEntities(false, { smooth: true }); });
+    modeElectricBtn.addEventListener('click', () => { settings.mode = 'electric'; saveSettings(); translateUi(); loadNearbyEntities(false, { smooth: true }); });
+
+
+    modalCloseBtn.addEventListener('click', closeEntityModal);
+    modalCloseActionBtn.addEventListener('click', closeEntityModal);
+    modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeEntityModal(); });
+    resultsModalCloseBtn.addEventListener('click', closeResultsModal);
+    resultsModalCloseActionBtn.addEventListener('click', closeResultsModal);
+    resultsModalOverlay.addEventListener('click', e => { if (e.target === resultsModalOverlay) closeResultsModal(); });
+    modalShareBtn.addEventListener('click', () => {
+      const entity = [...currentStations, ...currentEvPoints].find(x => modalNavigateBtn.href === getEntityGoogleMapsUrl(x));
+      if (entity) shareEntity(entity);
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        stopForegroundLocationRefresh();
+        startBackgroundRefresh();
+      } else {
+        stopBackgroundRefresh();
+        startForegroundLocationRefresh();
+        loadNearbyEntities(false, { allowNoDataExpansion: false, silentStatus: true });
+      }
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        if (modalOverlay.classList.contains('show')) closeEntityModal();
+        else if (resultsModalOverlay.classList.contains('show')) closeResultsModal();
+        else if (expandRadiusOverlay.classList.contains('show')) {
+          expandRadiusCancelBtn.click();
+        }
+        else if (legendPop.classList.contains('show')) {
+          legendPop.classList.remove('show');
+          helpBtn.setAttribute('aria-expanded', 'false');
+        } else if (sheet.classList.contains('open')) {
+          setSheetOpen(false);
+        }
+      }
+    });
+    if (window.matchMedia) {
+      const systemThemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const onSystemThemeChange = () => {
+        if (settings.themeMode === 'system') applyThemeMode();
+      };
+      if (typeof systemThemeQuery.addEventListener === 'function') systemThemeQuery.addEventListener('change', onSystemThemeChange);
+      else if (typeof systemThemeQuery.addListener === 'function') systemThemeQuery.addListener(onSystemThemeChange);
+    }
+
+    initMap();
+    translateUi();
+    setSheetOpen(false);
+    fuelTypeEl.value = settings.fuel;
+    radiusKmEl.value = settings.radius;
+    maxResultsEl.value = settings.maxResults;
+    languageSelect.value = settings.lang;
+    themeSelect.value = normalizeThemeMode(settings.themeMode);
+
+    const savedOriginCenter = normalizeCacheCenter(settings.lastOrigin);
+    if (savedOriginCenter) {
+      origin = {
+        latitude: savedOriginCenter.latitude,
+        longitude: savedOriginCenter.longitude,
+        label: settings.lastOrigin?.label || `${savedOriginCenter.latitude.toFixed(5)}, ${savedOriginCenter.longitude.toFixed(5)}`
+      };
+      homeOrigin = { ...origin };
+      map.setView([origin.latitude, origin.longitude], 14);
+      pruneCachesAroundCenter(origin, STATIC_AREA_RADIUS_KM, { updateCenter: true });
+    } else {
+      origin = { latitude:38.2669, longitude:-0.6985, label:'38.26690, -0.69850' };
+      homeOrigin = { ...origin };
+    }
+    (async () => {
+      await handleInitialGeolocationFlow();
+      pruneCachesAroundCenter(origin, STATIC_AREA_RADIUS_KM, { updateCenter: true });
+      await loadNearbyEntities(false, { allowNoDataExpansion: true, silentStatus: false });
+    })();
+    if (!document.hidden) {
+      startForegroundLocationRefresh();
+    } else {
+      startBackgroundRefresh();
+    }
+  </script>
+
+    <script>
+      window.__ANDROID_APP__ = true;
+      window.dispatchEvent(new CustomEvent('android-app-ready'));
+    </script>
+
+</body>
+</html>
