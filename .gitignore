@@ -1,0 +1,39 @@
+# Android / Gradle
+.gradle/
+**/build/
+!app/src/**/build/
+
+# Local config
+local.properties
+*.keystore
+*.jks
+*.pem
+*.key
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs / temp
+*.log
+*.tmp
+
+# Artifacts
+*.apk
+*.aab
+*.ap_
+*.idsig
+
+# Kotlin / Java
+*.class
+out/
+
+# Fastlane (if added later)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
