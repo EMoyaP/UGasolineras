@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">UGasolineras</string>
+    <string name="location_permission_rationale">La app necesita ubicación para centrar el mapa y mostrar gasolineras cercanas.</string>
+    <string name="car_app_name">UGasolineras Auto</string>
+    <string name="creator_name">Eugenio Moya Pérez</string>
+</resources>
